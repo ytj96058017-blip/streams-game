@@ -1,0 +1,1542 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>스트림스(Streams) 온라인 클래스룸</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  
+  <!-- Pretendard & Inter Web Fonts -->
+  <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Pretendard', 'Inter', 'system-ui', 'sans-serif'],
+          },
+          colors: {
+            streams: {
+              gold: '#F59E0B',
+              blue: '#2563EB',
+              emerald: '#10B981',
+              slate: '#1E293B',
+              board: '#E2E8F0'
+            }
+          },
+          boxShadow: {
+            'tile': '0 8px 0 #CBD5E1, 0 12px 16px rgba(0,0,0,0.1)',
+            'tile-active': '0 4px 0 #93C5FD, 0 6px 10px rgba(37,99,235,0.2)',
+            'tile-placed': '0 4px 0 #94A3B8, 0 6px 8px rgba(0,0,0,0.06)'
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    body {
+      background: radial-gradient(circle at 50% 10%, #F8FAFC 0%, #EEF2F6 100%);
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: manipulation; /* 모바일에서 더블탭 딜레이 방지 */
+    }
+    
+    .tile-pulse {
+      animation: tilePop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+    
+    @keyframes tilePop {
+      0% { transform: scale(0.6) translateY(20px); opacity: 0; }
+      100% { transform: scale(1) translateY(0); opacity: 1; }
+    }
+
+    /* 스트림스 원작 쉐브론(화살표) 트랙 셀 스타일 */
+    .stream-cell {
+      position: relative;
+      transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+      box-shadow: 0 3px 6px rgba(0,0,0,0.06);
+    }
+    .stream-cell:active {
+      transform: scale(0.93);
+    }
+
+    /* 가로 우측 진행 쉐브론 (Right) */
+    .cell-dir-right {
+      clip-path: polygon(0% 0%, calc(100% - 10px) 0%, 100% 50%, calc(100% - 10px) 100%, 0% 100%, 10px 50%);
+    }
+    .cell-dir-right.cell-start {
+      clip-path: polygon(0% 0%, calc(100% - 10px) 0%, 100% 50%, calc(100% - 10px) 100%, 0% 100%);
+      border-top-left-radius: 12px;
+      border-bottom-left-radius: 12px;
+    }
+
+    /* 코너 우상단 (우측에서 아래로) */
+    .cell-corner-tr {
+      clip-path: polygon(10px 0%, 100% 0%, 100% calc(100% - 10px), 50% 100%, 0% calc(100% - 10px), 0% 50%);
+      border-top-right-radius: 12px;
+    }
+
+    /* 세로 하강 쉐브론 (Down) */
+    .cell-dir-down {
+      clip-path: polygon(0% 10px, 50% 0%, 100% 10px, 100% calc(100% - 10px), 50% 100%, 0% calc(100% - 10px));
+    }
+
+    /* 코너 우하단 (아래에서 좌측으로) */
+    .cell-corner-br {
+      clip-path: polygon(0% 10px, 50% 0%, 100% 10px, 100% 100%, 10px 100%, 0% calc(100% - 10px));
+      border-bottom-right-radius: 12px;
+    }
+
+    /* 가로 좌측 진행 쉐브론 (Left) */
+    .cell-dir-left {
+      clip-path: polygon(10px 0%, 100% 0%, calc(100% - 10px) 50%, 100% 100%, 10px 100%, 0% 50%);
+    }
+    .cell-dir-left.cell-end {
+      clip-path: polygon(0% 0%, 100% 0%, calc(100% - 10px) 50%, 100% 100%, 0% 100%);
+      border-top-left-radius: 12px;
+      border-bottom-left-radius: 12px;
+    }
+
+    /* 모바일 지그재그 코너 스타일 */
+    .cell-corner-r-down {
+      clip-path: polygon(0% 0%, 100% 0%, 100% 70%, 50% 100%, 0% 70%, 0% 0%);
+      border-top-right-radius: 12px;
+    }
+    .cell-corner-l-down {
+      clip-path: polygon(0% 0%, 100% 0%, 100% 70%, 50% 100%, 0% 70%, 0% 0%);
+      border-top-left-radius: 12px;
+    }
+
+    /* 반응형 트랙 래퍼 */
+    .track-board-container {
+      background: #CBD5E1; /* 원작 시트 그레이 톤 */
+      box-shadow: inset 0 2px 6px rgba(0,0,0,0.12), 0 8px 24px rgba(148,163,184,0.3);
+    }
+
+    /* 커스텀 스크롤바 */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #F1F5F9;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #CBD5E1;
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #94A3B8;
+    }
+  </style>
+</head>
+<body class="min-h-screen text-slate-800 flex flex-col antialiased selection:bg-indigo-100 selection:text-indigo-800">
+
+  <header class="bg-white/90 backdrop-blur-md border-b border-slate-200 sticky top-0 z-30 shadow-sm">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 bg-gradient-to-tr from-indigo-600 to-blue-500 rounded-xl flex items-center justify-center text-white font-black text-xl shadow-md">
+          <i class="fa-solid fa-water"></i>
+        </div>
+        <div>
+          <h1 class="font-extrabold text-base sm:text-lg text-slate-900 tracking-tight flex items-center gap-2">
+            스트림스 <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-600 border border-indigo-200">온라인 클래스</span>
+          </h1>
+          <p class="text-[11px] text-slate-400 font-medium">실시간 오름차순 연결 보드게임</p>
+        </div>
+      </div>
+
+      <!-- 역할 전환 및 상태 배지 -->
+      <div class="flex items-center gap-2 sm:gap-3">
+        <div id="fbStatusBadge" class="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 border border-slate-200 rounded-full text-xs font-semibold text-slate-600">
+          <span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse" id="fbStatusDot"></span>
+          <span id="fbStatusText">파이어베이스 연결 중...</span>
+        </div>
+
+        <div class="bg-slate-100 p-1 rounded-xl flex items-center text-xs font-bold">
+          <button id="navTabStudent" onclick="switchRoleView('student')" class="px-3.5 py-1.5 rounded-lg transition-all text-indigo-700 bg-white shadow-sm">
+            <i class="fa-solid fa-graduation-cap mr-1"></i> 학생 모드
+          </button>
+          <button id="navTabTeacher" onclick="switchRoleView('teacher')" class="px-3.5 py-1.5 rounded-lg transition-all text-slate-500 hover:text-slate-700">
+            <i class="fa-solid fa-chalkboard-user mr-1"></i> 교사 모드
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 flex flex-col">
+
+    <!-- 1. 학생 로그인 및 닉네임 입력 모달 (처음 접속 시) -->
+    <div id="studentJoinModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div class="bg-white rounded-3xl max-w-md w-full p-6 sm:p-8 shadow-2xl border border-slate-100 text-center relative overflow-hidden">
+        <div class="absolute -right-8 -top-8 w-28 h-28 bg-indigo-50 rounded-full blur-xl pointer-events-none"></div>
+        <div class="w-16 h-16 bg-gradient-to-tr from-indigo-500 to-blue-600 text-white text-2xl rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-indigo-100">
+          <i class="fa-solid fa-dice"></i>
+        </div>
+        <h2 class="text-2xl font-black text-slate-900 mb-1 tracking-tight">스트림스 게임 참여</h2>
+        <p class="text-xs text-slate-500 mb-6">수업에서 사용할 본인의 이름(또는 출석번호+이름)을 적어주세요.</p>
+        
+        <form onsubmit="handleStudentJoin(event)" class="space-y-4">
+          <div class="text-left">
+            <label class="block text-xs font-bold text-slate-600 mb-1.5 ml-1">학생 이름</label>
+            <input type="text" id="inputStudentName" required maxlength="12" placeholder="예: 3반 14번 김민준" 
+              class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 transition outline-none" />
+          </div>
+          <button type="submit" class="w-full py-3.5 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white font-bold rounded-xl text-sm shadow-md shadow-indigo-200 transition">
+            게임방 입장하기 <i class="fa-solid fa-arrow-right ml-1"></i>
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <!-- 2. 교사 인증 모달 (교사 탭 전환 시 비번 1234 확인) -->
+    <div id="teacherAuthModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+      <div class="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-slate-100 text-center">
+        <div class="w-12 h-12 bg-amber-100 text-amber-600 rounded-2xl flex items-center justify-center text-xl mx-auto mb-3">
+          <i class="fa-solid fa-lock"></i>
+        </div>
+        <h3 class="text-lg font-black text-slate-900 mb-1">교사 관리자 인증</h3>
+        <p class="text-xs text-slate-500 mb-5">관리자 비밀번호(<span class="font-bold text-indigo-600">1234</span>)를 입력해주세요.</p>
+        <div class="space-y-3">
+          <input type="password" id="inputTeacherPw" placeholder="비밀번호 입력"
+            class="w-full px-4 py-2.5 text-center tracking-widest text-lg font-black bg-slate-50 border border-slate-200 rounded-xl focus:border-indigo-500 outline-none" />
+          <div class="flex gap-2">
+            <button onclick="closeTeacherAuthModal()" class="flex-1 py-2.5 bg-slate-100 text-slate-600 font-bold rounded-xl text-xs hover:bg-slate-200">
+              취소
+            </button>
+            <button onclick="verifyTeacherPw()" class="flex-1 py-2.5 bg-indigo-600 text-white font-bold rounded-xl text-xs hover:bg-indigo-700 shadow">
+              확인
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- [화면 A] 학생 뷰 (Student View) -->
+    <div id="viewStudent" class="flex flex-col lg:flex-row gap-6 w-full items-start">
+      
+      <!-- 좌측 메인: 스트림스 오리지널 스타일 시트 보드 (20칸 지그재그 트랙) -->
+      <div class="w-full lg:flex-1 bg-white rounded-3xl p-5 sm:p-7 border border-slate-200/80 shadow-sm relative overflow-hidden flex flex-col gap-6">
+        
+        <!-- 보드 헤더 및 상태 정보 -->
+        <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-4">
+          <div class="flex items-center gap-3">
+            <span class="w-9 h-9 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold text-sm">
+              <i class="fa-solid fa-user"></i>
+            </span>
+            <div>
+              <div class="flex items-center gap-2">
+                <h2 id="stPlayerName" class="font-extrabold text-base text-slate-900">참가자 로딩 중</h2>
+                <span id="stPlacementBadge" class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
+                  대기 중
+                </span>
+              </div>
+              <p class="text-[11px] text-slate-400">오름차순이 끊기지 않도록 전략적으로 숫자를 기입하세요!</p>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-2 text-right">
+            <div class="bg-indigo-50/80 border border-indigo-100 px-3.5 py-1.5 rounded-2xl">
+              <span class="text-[10px] font-bold uppercase tracking-wider text-indigo-500 block">진행 라운드</span>
+              <span class="text-sm font-black text-indigo-700"><span id="stCurrentRound">0</span> / 20</span>
+            </div>
+            <div class="bg-amber-50 border border-amber-100 px-3.5 py-1.5 rounded-2xl">
+              <span class="text-[10px] font-bold uppercase tracking-wider text-amber-600 block">내 총 점수</span>
+              <span class="text-sm font-black text-amber-700" id="stTotalScore">0점</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 현재 뽑힌 타일 대형 알림 영역 -->
+        <div class="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 rounded-2xl p-4 sm:p-5 text-white flex items-center justify-between shadow-lg relative overflow-hidden">
+          <div class="relative z-10">
+            <span class="text-xs font-bold text-indigo-300 tracking-wide block mb-1">
+              <i class="fa-solid fa-bullhorn mr-1 text-amber-400"></i> 이번 라운드 뽑힌 타일
+            </span>
+            <div id="stTileInstruction" class="text-xs text-slate-300">
+              선생님이 타일을 뽑으면 20칸 중 원하는 빈칸을 터치해 배치하세요.
+            </div>
+          </div>
+
+          <!-- 타일 비주얼 카드 -->
+          <div class="relative z-10 flex items-center gap-3">
+            <div id="stCurrentTileBox" class="w-16 h-20 sm:w-20 sm:h-24 bg-white rounded-2xl shadow-tile-active flex flex-col items-center justify-center border-2 border-indigo-300 text-slate-900">
+              <span id="stTileValue" class="text-2xl sm:text-3xl font-black">-</span>
+              <span id="stTileSub" class="text-[10px] font-bold text-slate-400">준비</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 20칸 스트림스 인터랙티브 보드판 (지그재그 트랙 4줄 x 5열) -->
+        <div>
+          <div class="flex items-center justify-between mb-3 px-1">
+            <span class="text-xs font-bold text-slate-700 flex items-center gap-2">
+              <span class="w-2.5 h-2.5 rounded-full bg-indigo-600 animate-ping"></span>
+              <i class="fa-solid fa-water text-indigo-600"></i> 원작 공식 20칸 연결 경로 (1 ➔ 20 오름차순 스트림)
+            </span>
+            <span class="text-[11px] text-rose-500 font-bold flex items-center gap-1">
+              <i class="fa-solid fa-triangle-exclamation"></i> 한 번 확정한 숫자는 수정 불가
+            </span>
+          </div>
+
+          <!-- 원작 시트 완벽 재현: 'ㄷ'자 화살표 경로 트랙 컨테이너 -->
+          <div class="track-board-container p-4 sm:p-6 rounded-3xl relative overflow-hidden">
+            <!-- 트랙 중앙 내부 워터마크 안내 -->
+            <div class="absolute left-6 bottom-24 sm:bottom-28 pointer-events-none hidden md:flex items-center gap-3 opacity-40">
+              <i class="fa-solid fa-route text-4xl text-slate-600"></i>
+              <div>
+                <span class="font-black text-slate-700 tracking-wider text-sm block">STREAMS TRACK</span>
+                <span class="text-[11px] text-slate-600 font-bold">화살표 방향을 따라 1번에서 20번까지 연결됩니다</span>
+              </div>
+            </div>
+
+            <!-- 20칸 경로 트랙 렌더링 영역 -->
+            <div id="streamsPathBoard" class="w-full">
+              <!-- JS에서 원작 ㄷ자 경로(상단 1~6 ➔ 우측 7~11 ➔ 하단 12~20)를 동적 렌더링 -->
+            </div>
+          </div>
+        </div>
+
+        <!-- 하단 액션 버튼: 임시 선택 확정하기 -->
+        <div class="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
+          <div class="text-xs text-slate-500 text-center sm:text-left">
+            <span id="stSelectionHelp" class="font-medium text-indigo-600">빈칸을 클릭하여 이번 숫자를 기입할 위치를 정하세요.</span>
+          </div>
+          <button id="btnConfirmPlacement" onclick="confirmCurrentTilePlacement()" disabled
+            class="w-full sm:w-auto px-6 py-3.5 rounded-xl bg-slate-200 text-slate-400 font-bold text-sm cursor-not-allowed shadow-none transition-all flex items-center justify-center gap-2 active:scale-95">
+            <i class="fa-solid fa-check"></i> 선택한 칸에 확정 기입하기
+          </button>
+        </div>
+
+        <!-- 20칸 완료 축하 및 상세 결과 배너 -->
+        <div id="gameFinishBanner" class="hidden p-5 bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-2xl text-emerald-900">
+          <div class="flex items-center gap-3 mb-2">
+            <div class="w-8 h-8 rounded-full bg-emerald-600 text-white flex items-center justify-center text-sm">
+              <i class="fa-solid fa-trophy"></i>
+            </div>
+            <h4 class="font-black text-base">축하합니다! 20칸이 모두 완성되었습니다!</h4>
+          </div>
+          <p id="gameFinishSummary" class="text-xs text-emerald-800 leading-relaxed">
+            구간별 오름차순 스트림 채점이 완료되었습니다. 상단에 최종 점수가 기록되었습니다.
+          </p>
+        </div>
+
+      </div>
+
+      <!-- 우측 사이드바: 원작 공식 점수표 & 규칙 팝업 카드 -->
+      <div class="w-full lg:w-80 flex flex-col gap-4">
+        
+        <!-- 점수표 카드 (원작 시트 그대로 반영) -->
+        <div class="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-sm">
+          <div class="flex items-center justify-between border-b border-slate-100 pb-3 mb-3">
+            <h3 class="font-black text-sm text-slate-800 flex items-center gap-2">
+              <i class="fa-solid fa-table-list text-indigo-600"></i> 스트림스 점수표
+            </h3>
+            <span class="text-[10px] bg-slate-100 text-slate-600 font-bold px-2 py-0.5 rounded-md">기본 공식 룰</span>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2 text-xs">
+            <div class="space-y-1 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+              <div class="text-[11px] font-black text-slate-500 border-b border-slate-200 pb-1 flex justify-between">
+                <span>길이</span> <span>점수</span>
+              </div>
+              <div class="flex justify-between py-0.5 text-slate-600"><span>1칸</span><span class="font-bold">0점</span></div>
+              <div class="flex justify-between py-0.5 text-slate-600"><span>2칸</span><span class="font-bold text-indigo-600">+1점</span></div>
+              <div class="flex justify-between py-0.5 text-slate-600"><span>3칸</span><span class="font-bold text-indigo-600">+3점</span></div>
+              <div class="flex justify-between py-0.5 text-slate-600"><span>4칸</span><span class="font-bold text-indigo-600">+5점</span></div>
+              <div class="flex justify-between py-0.5 text-slate-600"><span>5칸</span><span class="font-bold text-indigo-600">+7점</span></div>
+              <div class="flex justify-between py-0.5 text-slate-600"><span>6칸</span><span class="font-bold text-indigo-600">+9점</span></div>
+              <div class="flex justify-between py-0.5 text-slate-600"><span>7칸</span><span class="font-bold text-indigo-600">+11점</span></div>
+              <div class="flex justify-between py-0.5 text-slate-600"><span>8칸</span><span class="font-bold text-indigo-600">+15점</span></div>
+              <div class="flex justify-between py-0.5 text-slate-600"><span>9칸</span><span class="font-bold text-indigo-600">+20점</span></div>
+              <div class="flex justify-between py-0.5 text-slate-600"><span>10칸</span><span class="font-bold text-indigo-600">+25점</span></div>
+            </div>
+
+            <div class="space-y-1 bg-indigo-50/40 p-2.5 rounded-xl border border-indigo-100">
+              <div class="text-[11px] font-black text-indigo-600 border-b border-indigo-200 pb-1 flex justify-between">
+                <span>길이</span> <span>점수</span>
+              </div>
+              <div class="flex justify-between py-0.5 text-slate-600"><span>11칸</span><span class="font-bold text-indigo-600">+30점</span></div>
+              <div class="flex justify-between py-0.5 text-slate-600"><span>12칸</span><span class="font-bold text-indigo-600">+35점</span></div>
+              <div class="flex justify-between py-0.5 text-slate-600"><span>13칸</span><span class="font-bold text-indigo-600">+40점</span></div>
+              <div class="flex justify-between py-0.5 text-slate-600"><span>14칸</span><span class="font-bold text-indigo-600">+50점</span></div>
+              <div class="flex justify-between py-0.5 text-slate-600"><span>15칸</span><span class="font-bold text-indigo-600">+60점</span></div>
+              <div class="flex justify-between py-0.5 text-slate-600"><span>16칸</span><span class="font-bold text-indigo-600">+70점</span></div>
+              <div class="flex justify-between py-0.5 text-slate-600"><span>17칸</span><span class="font-bold text-indigo-600">+85점</span></div>
+              <div class="flex justify-between py-0.5 text-slate-600"><span>18칸</span><span class="font-bold text-indigo-600">+100점</span></div>
+              <div class="flex justify-between py-0.5 text-slate-600"><span>19칸</span><span class="font-bold text-indigo-600">+150점</span></div>
+              <div class="flex justify-between py-0.5 text-slate-900 font-extrabold bg-amber-100 px-1 rounded"><span>20칸</span><span class="text-amber-700">+300점</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 핵심 3대 룰 카드 -->
+        <div class="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-sm space-y-3">
+          <h4 class="font-black text-xs text-slate-700 uppercase tracking-wider">
+            <i class="fa-solid fa-lightbulb text-amber-500 mr-1"></i> 게임 진행 핵심 수칙
+          </h4>
+          <div class="space-y-2 text-xs">
+            <div class="flex items-start gap-2.5 p-2 bg-slate-50 rounded-xl">
+              <span class="w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-[10px] shrink-0">1</span>
+              <p class="text-slate-600">다음 숫자가 뽑히기 전에 반드시 1칸을 골라 배치해야 합니다.</p>
+            </div>
+            <div class="flex items-start gap-2.5 p-2 bg-slate-50 rounded-xl">
+              <span class="w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-[10px] shrink-0">2</span>
+              <p class="text-slate-600">이웃한 <span class="font-bold text-slate-900">같은 숫자는 오름차순으로 인정</span>됩니다. (예: 14 다음 14 OK)</p>
+            </div>
+            <div class="flex items-start gap-2.5 p-2 bg-slate-50 rounded-xl">
+              <span class="w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-[10px] shrink-0">3</span>
+              <p class="text-slate-600"><span class="text-rose-600 font-bold">조커(☆)</span>는 어떤 숫자로든 변신하며, 학생에게 가장 유리한 점수로 자동 계산됩니다.</p>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- [화면 B] 교사 대시보드 (Teacher View) -->
+    <div id="viewTeacher" class="hidden flex-col gap-6 w-full">
+      
+      <!-- 상단 컨트롤 배너: 라운드 조작 & 타일 추첨 -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        <!-- 1열: 타일 뽑기 컨트롤러 -->
+        <div class="lg:col-span-1 bg-white rounded-3xl p-6 border border-slate-200/80 shadow-sm flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between mb-4">
+              <span class="text-xs font-bold px-2.5 py-1 bg-indigo-100 text-indigo-700 rounded-full">
+                <i class="fa-solid fa-crown mr-1"></i> 진행자 컨트롤러
+              </span>
+              <span class="text-xs text-slate-400 font-semibold" id="tcRemainingCount">남은 타일: 40개</span>
+            </div>
+            
+            <h3 class="text-lg font-black text-slate-900 mb-1">타일 무작위 추첨</h3>
+            <p class="text-xs text-slate-500 mb-6">학생들의 제출 상태를 확인한 후 다음 숫자를 뽑으세요.</p>
+          </div>
+
+          <!-- 타일 뽑기 버튼 -->
+          <div class="space-y-3">
+            <button id="btnDrawTile" onclick="handleDrawTileClick()"
+              class="w-full py-4 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 active:scale-[0.98] text-white font-extrabold rounded-2xl shadow-lg shadow-indigo-200 text-base flex items-center justify-center gap-3 transition">
+              <i class="fa-solid fa-hand-holding-hand text-lg"></i>
+              <span id="btnDrawTileText">타일 1개 뽑기</span>
+            </button>
+            
+            <div class="flex items-center gap-2">
+              <button onclick="forceNextRound()" class="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5" title="미작성 학생이 있어도 강제로 넘깁니다">
+                <i class="fa-solid fa-forward-step"></i> 강제 다음 뽑기
+              </button>
+              <button onclick="requestResetGame()" class="py-2.5 px-4 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5" title="게임 상태를 초기화합니다">
+                <i class="fa-solid fa-rotate-right"></i> 초기화
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2열: 현재 뽑힌 타일 대형 프로젝터 뷰 -->
+        <div class="lg:col-span-1 bg-gradient-to-tr from-slate-900 via-indigo-950 to-slate-900 rounded-3xl p-6 text-white flex flex-col items-center justify-center shadow-md relative overflow-hidden text-center">
+          <span class="text-xs font-bold text-indigo-300 tracking-wider uppercase mb-2">현재 라운드 추첨 결과</span>
+          
+          <div id="tcBigTileBox" class="w-24 h-32 bg-white text-slate-900 rounded-2xl shadow-2xl flex flex-col items-center justify-center my-2 border-4 border-indigo-400">
+            <span id="tcBigTileValue" class="text-4xl font-black text-slate-900">-</span>
+            <span id="tcBigTileLabel" class="text-xs font-bold text-slate-400 mt-1">대기</span>
+          </div>
+
+          <div class="mt-2 text-xs text-slate-300">
+            현재 <span id="tcCurrentRoundText" class="font-extrabold text-amber-400">0</span>번째 타일 (총 20회 중)
+          </div>
+        </div>
+
+        <!-- 3열: 학생 제출 실시간 요약 통계 -->
+        <div class="lg:col-span-1 bg-white rounded-3xl p-6 border border-slate-200/80 shadow-sm flex flex-col justify-between">
+          <div>
+            <span class="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-2">실시간 진행 현황</span>
+            <div class="grid grid-cols-2 gap-3">
+              <div class="bg-indigo-50 border border-indigo-100 rounded-2xl p-4">
+                <span class="text-[11px] font-bold text-indigo-600 block">총 접속 학생</span>
+                <span id="tcTotalStudentsCount" class="text-2xl font-black text-indigo-950">0명</span>
+              </div>
+              <div class="bg-emerald-50 border border-emerald-100 rounded-2xl p-4">
+                <span class="text-[11px] font-bold text-emerald-600 block">이번 라운드 작성 완료</span>
+                <span id="tcSubmittedCount" class="text-2xl font-black text-emerald-700">0명</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="mt-4 p-3 bg-slate-50 rounded-xl text-xs text-slate-500 flex items-center gap-2">
+            <i class="fa-solid fa-circle-info text-indigo-500"></i>
+            <span>모든 학생이 작성을 완료하면 타일 뽑기 버튼이 자동으로 다시 활성화됩니다.</span>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- 하단 2열: 학생 실시간 현황표 & 뽑힌 타일 히스토리 -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        <!-- 실시간 학생 참여 및 점수 명단 (2열 차지) -->
+        <div class="lg:col-span-2 bg-white rounded-3xl p-6 border border-slate-200/80 shadow-sm">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="font-extrabold text-base text-slate-900 flex items-center gap-2">
+              <i class="fa-solid fa-users text-indigo-600"></i> 학생 참가자 명단 및 현황
+            </h3>
+            <span class="text-xs text-slate-400 font-medium">실시간 동기화 적용 중</span>
+          </div>
+
+          <!-- 학생 테이블 -->
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs">
+              <thead class="bg-slate-50 text-slate-500 uppercase font-black border-b border-slate-100">
+                <tr>
+                  <th class="px-4 py-3 rounded-l-xl">순번</th>
+                  <th class="px-4 py-3">학생 이름</th>
+                  <th class="px-4 py-3 text-center">이번 라운드 상태</th>
+                  <th class="px-4 py-3 text-center">작성한 칸 수</th>
+                  <th class="px-4 py-3 text-right rounded-r-xl">현재 점수</th>
+                </tr>
+              </thead>
+              <tbody id="tcStudentTableBody" class="divide-y divide-slate-100">
+                <tr>
+                  <td colspan="5" class="py-8 text-center text-slate-400">
+                    아직 접속한 학생이 없습니다. 다른 창에서 학생으로 접속해보세요.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- 지금까지 뽑힌 타일 히스토리 로그 (1열) -->
+        <div class="lg:col-span-1 bg-white rounded-3xl p-6 border border-slate-200/80 shadow-sm flex flex-col">
+          <h3 class="font-extrabold text-sm text-slate-900 mb-3 flex items-center gap-2">
+            <i class="fa-solid fa-clock-rotate-left text-indigo-600"></i> 지금까지 나온 타일 (<span id="tcHistoryCount">0</span>/20)
+          </h3>
+          <div id="tcTileHistoryList" class="flex-1 overflow-y-auto max-h-96 flex flex-wrap gap-2 content-start p-2 bg-slate-50 rounded-2xl border border-slate-100">
+            <span class="text-xs text-slate-400 p-2">아직 추첨된 타일이 없습니다.</span>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- 안전한 인앱 알림/확인 모달 (iframe 내 alert/confirm 대체) -->
+  <div id="modalAppDialog" class="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-slate-100 text-center space-y-4 animate-in fade-in zoom-in-95">
+      <div id="modalDialogIcon" class="w-12 h-12 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center text-xl mx-auto">
+        <i class="fa-solid fa-circle-question"></i>
+      </div>
+      <div>
+        <h3 id="modalDialogTitle" class="font-black text-slate-900 text-base mb-1">확인이 필요합니다</h3>
+        <p id="modalDialogMsg" class="text-xs text-slate-500 leading-relaxed">내용</p>
+      </div>
+      <div class="flex gap-2 pt-2">
+        <button id="btnModalCancel" class="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition">
+          취소
+        </button>
+        <button id="btnModalProceed" class="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs shadow-md transition">
+          확인
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 토스트 알림 컨테이너 -->
+  <div id="toastStack" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { 
+      getAuth, 
+      signInAnonymously 
+    } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { 
+      getFirestore, 
+      doc, 
+      getDoc, 
+      setDoc, 
+      updateDoc, 
+      onSnapshot, 
+      collection 
+    } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyChxrOzoTxFMy_BvkvNZLXAp1oRvN7Fb1g",
+      authDomain: "focus-tower-defense.firebaseapp.com",
+      databaseURL: "https://focus-tower-defense-default-rtdb.firebaseio.com",
+      projectId: "focus-tower-defense",
+      storageBucket: "focus-tower-defense.firebasestorage.app",
+      messagingSenderId: "519329169002",
+      appId: "1:519329169002:web:401534fe04b6ad39131413",
+      measurementId: "G-G2JRKQ2KXY"
+    };
+
+    let app = null;
+    let auth = null;
+    let db = null;
+    let isFirebaseActive = false;
+    const targetAppId = 'streams_classroom_app';
+
+    // 원작 스트림스 공식 점수표 (1칸 0점 ~ 20칸 300점)
+    const SCORE_TABLE = {
+      1: 0, 2: 1, 3: 3, 4: 5, 5: 7,
+      6: 9, 7: 11, 8: 15, 9: 20, 10: 25,
+      11: 30, 12: 35, 13: 40, 14: 50, 15: 60,
+      16: 70, 17: 85, 18: 100, 19: 150, 20: 300
+    };
+
+    // 완료 시 스트림 구간별 하이라이트 색상 팔레트
+    const STREAM_COLORS = [
+      { bg: 'bg-emerald-100', text: 'text-emerald-800' },
+      { bg: 'bg-sky-100', text: 'text-sky-800' },
+      { bg: 'bg-amber-100', text: 'text-amber-800' },
+      { bg: 'bg-purple-100', text: 'text-purple-800' },
+      { bg: 'bg-rose-100', text: 'text-rose-800' },
+      { bg: 'bg-indigo-100', text: 'text-indigo-800' },
+      { bg: 'bg-teal-100', text: 'text-teal-800' },
+      { bg: 'bg-orange-100', text: 'text-orange-800' }
+    ];
+
+    // 내 플레이어 상태
+    let myPlayer = {
+      id: 'player_' + Math.random().toString(36).substring(2, 9),
+      name: '',
+      board: Array(20).fill(null),
+      tempIndex: null,
+      isPlacedCurrentRound: false,
+      score: 0,
+      streams: []
+    };
+
+    // 전체 게임 상태 (교사 및 동기화용)
+    let gameState = {
+      round: 0,
+      currentTile: null,
+      deck: [],
+      drawnHistory: [],
+      isFinished: false
+    };
+
+    let allStudentsList = [];
+
+    function generateNewDeck() {
+      const deck = [];
+      // 1 ~ 10: 각 1개
+      for (let i = 1; i <= 10; i++) {
+        deck.push({ id: `t_${i}`, value: i, label: String(i), isJoker: false });
+      }
+      // 11 ~ 19: 각 2개 (총 18개)
+      for (let i = 11; i <= 19; i++) {
+        deck.push({ id: `t_${i}_a`, value: i, label: String(i), isJoker: false });
+        deck.push({ id: `t_${i}_b`, value: i, label: String(i), isJoker: false });
+      }
+      // 20 ~ 30: 각 1개 (총 11개)
+      for (let i = 20; i <= 30; i++) {
+        deck.push({ id: `t_${i}`, value: i, label: String(i), isJoker: false });
+      }
+      // 조커: 1개
+      deck.push({ id: 't_joker', value: 0, label: '★', isJoker: true });
+
+      // Fisher-Yates 셔플
+    for (let i = deck.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [deck[i], deck[j]] = [deck[j], deck[i]];
+    }
+    return deck;
+  }
+
+  // 반응형 트랙 렌더링 (모바일 화면 폭에 맞춰 5열 x 4행 지그재그 또는 데스크톱 ㄷ자 경로 자동 선택)
+  window.renderStreamsBoard = function() {
+    const container = document.getElementById('streamsPathBoard');
+    if (!container) return;
+    container.innerHTML = '';
+
+    const isMobile = window.innerWidth < 768;
+
+    if (isMobile) {
+      // [스마트폰 화면]: 5열 x 4줄 S자 지그재그 트랙 (화면 폭에 딱 맞고 터치하기 큼직함)
+      const trackWrapper = document.createElement('div');
+      trackWrapper.className = 'flex flex-col gap-2 select-none w-full';
+
+      // 4줄의 지그재그 행 정의 (행 1: 1->5, 행 2: 6->10 좌방향, 행 3: 11->15, 행 4: 16->20 좌방향)
+      const rows = [
+        { cells: [0, 1, 2, 3, 4], dir: 'right' },
+        { cells: [9, 8, 7, 6, 5], dir: 'left' },
+        { cells: [10, 11, 12, 13, 14], dir: 'right' },
+        { cells: [19, 18, 17, 16, 15], dir: 'left' }
+      ];
+
+      rows.forEach((rowMeta, rIdx) => {
+        const rowEl = document.createElement('div');
+        rowEl.className = 'grid grid-cols-5 gap-1.5 w-full';
+
+        rowMeta.cells.forEach((cellIdx) => {
+          const isRight = (rowMeta.dir === 'right');
+          let dirClass = isRight ? 'cell-dir-right' : 'cell-dir-left';
+          if (cellIdx === 0) dirClass += ' cell-start';
+          if (cellIdx === 19) dirClass += ' cell-end';
+
+          rowEl.appendChild(createMobileTrackCellElement(cellIdx, dirClass));
+        });
+
+        trackWrapper.appendChild(rowEl);
+      });
+
+      container.appendChild(trackWrapper);
+
+    } else {
+      // [PC / 태블릿 화면]: 원작 고유 ㄷ자 트랙 레이아웃 유지
+      const trackWrapper = document.createElement('div');
+      trackWrapper.className = 'flex flex-col gap-2.5 sm:gap-4 select-none';
+
+      // 1. 상단 행 (1 ~ 7번 칸)
+      const topRow = document.createElement('div');
+      topRow.className = 'grid grid-cols-7 gap-1.5 sm:gap-2 w-full';
+      for (let i = 0; i <= 6; i++) {
+        topRow.appendChild(createTrackCellElement(i));
+      }
+      trackWrapper.appendChild(topRow);
+
+      // 2. 중간 영역 (중앙 로고 + 우측 8 ~ 11번 세로 칸)
+      const midSection = document.createElement('div');
+      midSection.className = 'grid grid-cols-7 gap-1.5 sm:gap-2 w-full';
+
+      const midSpacer = document.createElement('div');
+      midSpacer.className = 'col-span-6 flex items-center justify-center p-4 sm:p-6 bg-slate-200/50 rounded-2xl border-2 border-dashed border-slate-300';
+      midSpacer.innerHTML = `
+        <div class="text-center text-slate-500">
+          <div class="font-black text-sm sm:text-base tracking-widest text-slate-700 flex items-center justify-center gap-2 mb-1">
+            <i class="fa-solid fa-water text-indigo-500"></i> 원작 스트림스 화살표 경로
+          </div>
+          <p class="text-[11px] sm:text-xs text-slate-400 font-medium">
+            1번에서 출발하여 20번까지 오름차순으로 길게 이을수록 높은 점수를 얻습니다.
+          </p>
+        </div>
+      `;
+      midSection.appendChild(midSpacer);
+
+      const rightCol = document.createElement('div');
+      rightCol.className = 'col-span-1 flex flex-col gap-1.5 sm:gap-2 justify-between';
+      for (let i = 7; i <= 10; i++) {
+        rightCol.appendChild(createTrackCellElement(i, true));
+      }
+      midSection.appendChild(rightCol);
+      trackWrapper.appendChild(midSection);
+
+      // 3. 하단 행 (20 ~ 12번 칸)
+      const botRow = document.createElement('div');
+      botRow.className = 'grid grid-cols-9 gap-1.5 sm:gap-2 w-full';
+      for (let num = 20; num >= 12; num--) {
+        const cellIdx = num - 1;
+        botRow.appendChild(createTrackCellElement(cellIdx));
+      }
+      trackWrapper.appendChild(botRow);
+
+      container.appendChild(trackWrapper);
+    }
+  };
+
+  function createMobileTrackCellElement(index, dirClass) {
+    const cellData = myPlayer.board[index];
+    const isTempSelected = (myPlayer.tempIndex === index);
+
+    const cell = document.createElement('div');
+    // 모바일 터치를 위해 세로 높이 h-14 (56px) 확보
+    cell.className = `stream-cell ${dirClass} h-14 font-black text-slate-800 transition-all`;
+
+    if (cellData) {
+      if (cellData.colorClass) {
+        cell.className += ` ${cellData.colorClass.bg} ${cellData.colorClass.text}`;
+      } else {
+        cell.className += ' bg-white text-slate-900';
+      }
+
+      const valSpan = document.createElement('span');
+      valSpan.className = 'text-xl font-black z-10';
+      valSpan.innerText = cellData.label || cellData.value;
+      cell.appendChild(valSpan);
+
+      if (cellData.isJoker) {
+        const jokerMark = document.createElement('span');
+        jokerMark.className = 'text-[8px] text-amber-500 font-bold z-10 -mt-1';
+        jokerMark.innerText = '★조커';
+        cell.appendChild(jokerMark);
+      }
+
+    } else if (isTempSelected) {
+      cell.className += ' bg-indigo-500 text-white scale-[1.05] ring-4 ring-indigo-200 z-20 shadow-md';
+      const tempVal = document.createElement('span');
+      tempVal.className = 'text-xl font-black animate-pulse z-10';
+      tempVal.innerText = gameState.currentTile ? (gameState.currentTile.label || gameState.currentTile.value) : '?';
+      cell.appendChild(tempVal);
+
+    } else {
+      cell.className += ' bg-white text-slate-300 active:bg-indigo-50';
+      const dot = document.createElement('span');
+      dot.className = 'text-xs font-semibold opacity-40';
+      dot.innerHTML = '<i class="fa-solid fa-plus text-[10px]"></i>';
+      cell.appendChild(dot);
+    }
+
+    const numBadge = document.createElement('span');
+    numBadge.className = 'absolute top-1 left-2 text-[10px] font-bold text-slate-400 select-none z-10';
+    numBadge.innerText = index + 1;
+    cell.appendChild(numBadge);
+
+    cell.onclick = () => handleCellClick(index);
+    return cell;
+  }
+      return deck;
+    }
+
+    // 원작 시트의 칸별 트랙 방향 및 형태 메타데이터 (총 20칸)
+    // 1~6: 상단 우측 진행 (Right)
+    // 7: 우상단 꺾임 코너 (Corner Top-Right)
+    // 8~11: 우측 세로 하강 (Down)
+    // 12: 우하단 꺾임 코너 (Corner Bottom-Right)
+    // 13~20: 하단 좌측 진행 (Left)
+    const TRACK_CELL_CONFIG = [
+      { num: 1, dir: 'cell-dir-right cell-start', label: '1' },
+      { num: 2, dir: 'cell-dir-right', label: '2' },
+      { num: 3, dir: 'cell-dir-right', label: '3' },
+      { num: 4, dir: 'cell-dir-right', label: '4' },
+      { num: 5, dir: 'cell-dir-right', label: '5' },
+      { num: 6, dir: 'cell-dir-right', label: '6' },
+      { num: 7, dir: 'cell-corner-tr', label: '7' },
+      { num: 8, dir: 'cell-dir-down', label: '8' },
+      { num: 9, dir: 'cell-dir-down', label: '9' },
+      { num: 10, dir: 'cell-dir-down', label: '10' },
+      { num: 11, dir: 'cell-dir-down', label: '11' },
+      { num: 12, dir: 'cell-corner-br', label: '12' },
+      { num: 13, dir: 'cell-dir-left', label: '13' },
+      { num: 14, dir: 'cell-dir-left', label: '14' },
+      { num: 15, dir: 'cell-dir-left', label: '15' },
+      { num: 16, dir: 'cell-dir-left', label: '16' },
+      { num: 17, dir: 'cell-dir-left', label: '17' },
+      { num: 18, dir: 'cell-dir-left', label: '18' },
+      { num: 19, dir: 'cell-dir-left', label: '19' },
+      { num: 20, dir: 'cell-dir-left cell-end', label: '20' }
+    ];
+
+    window.renderStreamsBoard = function() {
+      const container = document.getElementById('streamsPathBoard');
+      if (!container) return;
+      container.innerHTML = '';
+
+      const trackWrapper = document.createElement('div');
+      trackWrapper.className = 'flex flex-col gap-2.5 sm:gap-4 select-none';
+
+      // 1. 상단 행 (1 ~ 7번 칸)
+      const topRow = document.createElement('div');
+      topRow.className = 'grid grid-cols-7 gap-1.5 sm:gap-2 w-full';
+      for (let i = 0; i <= 6; i++) {
+        topRow.appendChild(createTrackCellElement(i));
+      }
+      trackWrapper.appendChild(topRow);
+
+      // 2. 중간 영역 (좌측 가이드 + 우측 8 ~ 11번 세로 칸)
+      const midSection = document.createElement('div');
+      midSection.className = 'grid grid-cols-7 gap-1.5 sm:gap-2 w-full';
+
+      const midSpacer = document.createElement('div');
+      midSpacer.className = 'col-span-6 flex items-center justify-center p-3 sm:p-6 bg-slate-200/50 rounded-2xl border-2 border-dashed border-slate-300';
+      midSpacer.innerHTML = `
+        <div class="text-center text-slate-500">
+          <div class="font-black text-xs sm:text-base tracking-widest text-slate-600 flex items-center justify-center gap-2 mb-1">
+            <i class="fa-solid fa-water text-indigo-500"></i> 스트림스 오름차순 트랙
+          </div>
+          <p class="text-[11px] sm:text-xs text-slate-400 font-medium hidden sm:block">
+            상단 [1번]부터 화살표를 따라 우측으로 돌아서 하단 [20번]으로 이어집니다.
+          </p>
+        </div>
+      `;
+      midSection.appendChild(midSpacer);
+
+      const rightCol = document.createElement('div');
+      rightCol.className = 'col-span-1 flex flex-col gap-1.5 sm:gap-2 justify-between';
+      for (let i = 7; i <= 10; i++) {
+        rightCol.appendChild(createTrackCellElement(i, true));
+      }
+      midSection.appendChild(rightCol);
+      trackWrapper.appendChild(midSection);
+
+      // 3. 하단 행 (20 ~ 12번 칸: 좌측 20번부터 우측 12번 코너까지)
+      const botRow = document.createElement('div');
+      botRow.className = 'grid grid-cols-9 gap-1.5 sm:gap-2 w-full';
+      for (let num = 20; num >= 12; num--) {
+        const cellIdx = num - 1;
+        botRow.appendChild(createTrackCellElement(cellIdx));
+      }
+      trackWrapper.appendChild(botRow);
+
+      container.appendChild(trackWrapper);
+    };
+
+    function createTrackCellElement(index, isVertical = false) {
+      const cellData = myPlayer.board[index];
+      const isTempSelected = (myPlayer.tempIndex === index);
+      const conf = TRACK_CELL_CONFIG[index];
+
+      const cell = document.createElement('div');
+      cell.className = `stream-cell ${conf.dir} h-14 sm:h-20 ${isVertical ? 'h-12 sm:h-16' : ''} font-black text-slate-800 transition-all`;
+
+      if (cellData) {
+        if (cellData.colorClass) {
+          cell.className += ` ${cellData.colorClass.bg} ${cellData.colorClass.text}`;
+        } else {
+          cell.className += ' bg-white text-slate-900';
+        }
+
+        const valSpan = document.createElement('span');
+        valSpan.className = 'text-base sm:text-2xl font-black z-10';
+        valSpan.innerText = cellData.label || cellData.value;
+        cell.appendChild(valSpan);
+
+        if (cellData.isJoker) {
+          const jokerMark = document.createElement('span');
+          jokerMark.className = 'text-[9px] text-amber-500 font-bold z-10 -mt-1';
+          jokerMark.innerText = '★조커';
+          cell.appendChild(jokerMark);
+        }
+
+      } else if (isTempSelected) {
+        cell.className += ' bg-indigo-500 text-white scale-[1.04] ring-4 ring-indigo-200 z-20';
+        const tempVal = document.createElement('span');
+        tempVal.className = 'text-lg sm:text-2xl font-black animate-pulse z-10';
+        tempVal.innerText = gameState.currentTile ? (gameState.currentTile.label || gameState.currentTile.value) : '?';
+        cell.appendChild(tempVal);
+
+      } else {
+        cell.className += ' bg-white/95 hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 hover:scale-[1.02]';
+        const dot = document.createElement('span');
+        dot.className = 'text-xs sm:text-sm font-semibold opacity-40 group-hover:opacity-100';
+        dot.innerHTML = '<i class="fa-solid fa-plus text-[10px]"></i>';
+        cell.appendChild(dot);
+      }
+
+      const numBadge = document.createElement('span');
+      numBadge.className = 'absolute top-1 left-2 text-[9px] sm:text-[10px] font-bold text-slate-400 select-none z-10';
+      numBadge.innerText = conf.num;
+      cell.appendChild(numBadge);
+
+      cell.onclick = () => handleCellClick(index);
+      return cell;
+    }
+
+    function handleCellClick(index) {
+      if (!gameState.currentTile || gameState.round === 0) {
+        showToast('아직 교사가 타일을 뽑지 않았습니다.', 'warning');
+        return;
+      }
+      if (myPlayer.isPlacedCurrentRound) {
+        showToast('이번 라운드 타일은 이미 배치하셨습니다.', 'info');
+        return;
+      }
+      if (myPlayer.board[index] !== null) {
+        showToast('이미 숫자가 채워진 칸은 선택할 수 없습니다.', 'warning');
+        return;
+      }
+
+      myPlayer.tempIndex = index;
+      renderStreamsBoard();
+      updateStudentViewUI();
+    }
+
+    window.confirmCurrentTilePlacement = async function() {
+      if (myPlayer.tempIndex === null || !gameState.currentTile) return;
+      const idx = myPlayer.tempIndex;
+
+      myPlayer.board[idx] = {
+        ...gameState.currentTile,
+        round: gameState.round
+      };
+      myPlayer.isPlacedCurrentRound = true;
+      myPlayer.tempIndex = null;
+
+      showToast(`${idx + 1}번 칸에 [ ${gameState.currentTile.label || gameState.currentTile.value} ] 타일이 확정되었습니다!`, 'success');
+
+      const filledCount = myPlayer.board.filter(b => b !== null).length;
+      if (filledCount === 20) {
+        calculateFinalScoreAndHighlight();
+      }
+
+      renderStreamsBoard();
+      updateStudentViewUI();
+
+      await syncStudentDataToFirebase();
+    };
+
+    async function syncStudentDataToFirebase() {
+      if (!isFirebaseActive || !db || !myPlayer.name) return;
+      const appId = targetAppId;
+      const playerDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'streams_players', myPlayer.id);
+
+      const filledCount = myPlayer.board.filter(b => b !== null).length;
+
+      try {
+        await setDoc(playerDocRef, {
+          name: myPlayer.name,
+          board: JSON.stringify(myPlayer.board),
+          isPlaced: myPlayer.isPlacedCurrentRound,
+          filledCount: filledCount,
+          score: myPlayer.score,
+          updatedAt: Date.now()
+        }, { merge: true });
+      } catch (err) {
+        console.error("Failed to sync student data:", err);
+      }
+    }
+
+    function calculateFinalScoreAndHighlight() {
+      let bestResult = evaluateBoardStreams(myPlayer.board);
+
+      myPlayer.score = bestResult.totalScore;
+      myPlayer.streams = bestResult.streams;
+
+      bestResult.streams.forEach((stream, sIdx) => {
+        const color = STREAM_COLORS[sIdx % STREAM_COLORS.length];
+        stream.indices.forEach(cellIdx => {
+          if (myPlayer.board[cellIdx]) {
+            myPlayer.board[cellIdx].colorClass = color;
+          }
+        });
+      });
+
+      const banner = document.getElementById('gameFinishBanner');
+      const summary = document.getElementById('gameFinishSummary');
+      if (banner && summary) {
+        banner.classList.remove('hidden');
+        summary.innerHTML = `총 <strong>${bestResult.streams.length}개</strong>의 오름차순 구간이 만들어졌으며, 최종 합계 점수는 <strong>${bestResult.totalScore}점</strong>입니다!`;
+      }
+
+      const totalScoreEl = document.getElementById('stTotalScore');
+      if (totalScoreEl) totalScoreEl.innerText = `${bestResult.totalScore}점`;
+      showToast(`축하합니다! 총점 ${bestResult.totalScore}점으로 게임을 마쳤습니다!`, 'success');
+    }
+
+    function evaluateBoardStreams(board) {
+      const jokerIndex = board.findIndex(item => item && item.isJoker);
+
+      if (jokerIndex === -1) {
+        return scoreFixedArray(board.map(b => b ? b.value : 0));
+      }
+
+      const leftVal = jokerIndex > 0 && board[jokerIndex - 1] ? board[jokerIndex - 1].value : null;
+      const rightVal = jokerIndex < 19 && board[jokerIndex + 1] ? board[jokerIndex + 1].value : null;
+
+      const candidates = [0.5, 99.5];
+      if (leftVal !== null) candidates.push(leftVal);
+      if (rightVal !== null) candidates.push(rightVal);
+
+      let bestScore = -1;
+      let bestEvaluation = null;
+
+      candidates.forEach(cand => {
+        const numericArray = board.map((item, idx) => {
+          if (idx === jokerIndex) return cand;
+          return item ? item.value : 0;
+        });
+        const res = scoreFixedArray(numericArray);
+        if (res.totalScore > bestScore) {
+          bestScore = res.totalScore;
+          bestEvaluation = res;
+        }
+      });
+
+      return bestEvaluation || { totalScore: 0, streams: [] };
+    }
+
+    function scoreFixedArray(arr) {
+      const streams = [];
+      let currentStream = [0];
+
+      for (let i = 1; i < arr.length; i++) {
+        if (arr[i - 1] <= arr[i]) {
+          currentStream.push(i);
+        } else {
+          streams.push({ indices: [...currentStream], len: currentStream.length, score: SCORE_TABLE[currentStream.length] || 0 });
+          currentStream = [i];
+        }
+      }
+      if (currentStream.length > 0) {
+        streams.push({ indices: [...currentStream], len: currentStream.length, score: SCORE_TABLE[currentStream.length] || 0 });
+      }
+
+      const totalScore = streams.reduce((acc, cur) => acc + cur.score, 0);
+      return { totalScore, streams };
+    }
+
+    window.handleDrawTileClick = async function() {
+      const unsubmitted = allStudentsList.filter(s => !s.isPlaced && s.filledCount < gameState.round);
+      if (unsubmitted.length > 0 && gameState.round > 0) {
+        openAppModal(
+          '아직 작성 중인 학생이 있습니다',
+          `[${unsubmitted.map(s => s.name).slice(0, 3).join(', ')}${unsubmitted.length > 3 ? ' 외' : ''}] 학생이 아직 번호를 기입하지 않았습니다. 강제로 다음 타일을 뽑으시겠습니까?`,
+          () => executeDrawNextTile()
+        );
+        return;
+      }
+
+      await executeDrawNextTile();
+    };
+
+    async function executeDrawNextTile() {
+      if (gameState.round >= 20) {
+        showToast('20라운드가 모두 종료되었습니다!', 'info');
+        return;
+      }
+
+      let currentDeck = (gameState.deck && gameState.deck.length > 0) ? [...gameState.deck] : generateNewDeck();
+      const nextTile = currentDeck.pop();
+      const nextRound = gameState.round + 1;
+      const history = gameState.drawnHistory ? [...gameState.drawnHistory, nextTile] : [nextTile];
+
+      gameState.round = nextRound;
+      gameState.currentTile = nextTile;
+      gameState.deck = currentDeck;
+      gameState.drawnHistory = history;
+
+      if (isFirebaseActive && db) {
+        const appId = targetAppId;
+        const stateDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'streams_state', 'room_main');
+        await setDoc(stateDocRef, {
+          round: nextRound,
+          currentTile: nextTile,
+          deck: currentDeck,
+          drawnHistory: history,
+          isFinished: nextRound >= 20,
+          updatedAt: Date.now()
+        });
+
+        // 학생들의 제출 상태 일괄 리셋
+        allStudentsList.forEach(async (st) => {
+          const pRef = doc(db, 'artifacts', appId, 'public', 'data', 'streams_players', st.id);
+          await updateDoc(pRef, { isPlaced: false }).catch(() => {});
+        });
+      }
+
+      handleGameStateUpdate();
+      showToast(`라운드 ${nextRound}: [ ${nextTile.label || nextTile.value} ] 타일이 추첨되었습니다!`, 'success');
+    }
+
+    window.forceNextRound = function() {
+      openAppModal(
+        '강제 다음 타일 추첨',
+        '미작성 학생을 무시하고 즉시 다음 타일을 뽑으시겠습니까?',
+        () => executeDrawNextTile()
+      );
+    };
+
+    window.requestResetGame = function() {
+      openAppModal(
+        '게임 전체 초기화',
+        '현재 게임을 처음(0라운드)부터 다시 시작하시겠습니까? 모든 학생의 보드도 함께 리셋됩니다.',
+        () => resetGameCompletely()
+      );
+    };
+
+    async function resetGameCompletely() {
+      const freshDeck = generateNewDeck();
+      gameState.round = 0;
+      gameState.currentTile = null;
+      gameState.deck = freshDeck;
+      gameState.drawnHistory = [];
+      gameState.isFinished = false;
+
+      myPlayer.board = Array(20).fill(null);
+      myPlayer.tempIndex = null;
+      myPlayer.isPlacedCurrentRound = false;
+      myPlayer.score = 0;
+
+      const banner = document.getElementById('gameFinishBanner');
+      if (banner) banner.classList.add('hidden');
+
+      if (isFirebaseActive && db) {
+        const appId = targetAppId;
+        const stateDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'streams_state', 'room_main');
+        await setDoc(stateDocRef, {
+          round: 0,
+          currentTile: null,
+          deck: freshDeck,
+          drawnHistory: [],
+          isFinished: false,
+          updatedAt: Date.now()
+        });
+      }
+
+      handleGameStateUpdate();
+      showToast('게임이 성공적으로 초기화되었습니다.', 'info');
+    }
+
+    function handleGameStateUpdate() {
+      // 학생 화면 타일 표시 갱신
+      const tileValueEl = document.getElementById('stTileValue');
+      const tileSubEl = document.getElementById('stTileSub');
+      const roundEl = document.getElementById('stCurrentRound');
+      const tcRoundText = document.getElementById('tcCurrentRoundText');
+      const tcRemainingCount = document.getElementById('tcRemainingCount');
+
+      if (roundEl) roundEl.innerText = gameState.round;
+      if (tcRoundText) tcRoundText.innerText = gameState.round;
+      if (tcRemainingCount) {
+        const rem = gameState.deck ? gameState.deck.length : (40 - gameState.round);
+        tcRemainingCount.innerText = `남은 타일: ${rem}개`;
+      }
+
+      if (gameState.currentTile) {
+        const val = gameState.currentTile.label || gameState.currentTile.value;
+        if (tileValueEl) tileValueEl.innerText = val;
+        if (tileSubEl) tileSubEl.innerText = gameState.currentTile.isJoker ? '조커(★)' : `라운드 ${gameState.round}`;
+
+        // 교사용 대형 타일 표시기
+        const tcBigVal = document.getElementById('tcBigTileValue');
+        const tcBigLabel = document.getElementById('tcBigTileLabel');
+        if (tcBigVal) tcBigVal.innerText = val;
+        if (tcBigLabel) tcBigLabel.innerText = gameState.currentTile.isJoker ? '★ 조커' : `${gameState.round}번째 타일`;
+      } else {
+        if (tileValueEl) tileValueEl.innerText = '-';
+        if (tileSubEl) tileSubEl.innerText = '준비';
+        const tcBigVal = document.getElementById('tcBigTileValue');
+        const tcBigLabel = document.getElementById('tcBigTileLabel');
+        if (tcBigVal) tcBigVal.innerText = '-';
+        if (tcBigLabel) tcBigLabel.innerText = '대기';
+      }
+
+      renderStreamsBoard();
+      updateStudentViewUI();
+      updateTeacherDashboardUI();
+    }
+
+    function updateStudentViewUI() {
+      const stNameEl = document.getElementById('stPlayerName');
+      if (stNameEl) stNameEl.innerText = myPlayer.name || '학생';
+
+      const badge = document.getElementById('stPlacementBadge');
+      const btnConfirm = document.getElementById('btnConfirmPlacement');
+      const help = document.getElementById('stSelectionHelp');
+
+      if (gameState.round === 0) {
+        if (badge) {
+          badge.className = 'text-[11px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500';
+          badge.innerText = '게임 시작 대기 중';
+        }
+        if (btnConfirm) btnConfirm.disabled = true;
+        if (help) help.innerText = '교사(선생님)가 첫 번째 숫자를 뽑기를 기다리고 있습니다.';
+        return;
+      }
+
+      if (myPlayer.isPlacedCurrentRound) {
+        if (badge) {
+          badge.className = 'text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700';
+          badge.innerText = '이번 라운드 작성 완료';
+        }
+        if (btnConfirm) {
+          btnConfirm.disabled = true;
+          btnConfirm.className = 'w-full sm:w-auto px-6 py-3 rounded-xl bg-slate-100 text-slate-400 font-bold text-xs cursor-not-allowed';
+        }
+        if (help) help.innerText = '작성 완료! 다음 라운드 타일이 뽑힐 때까지 잠시 기다려주세요.';
+      } else {
+        if (badge) {
+          badge.className = 'text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 animate-pulse';
+          badge.innerText = '배치할 칸 선택 중';
+        }
+        if (myPlayer.tempIndex !== null) {
+          if (btnConfirm) {
+            btnConfirm.disabled = false;
+            btnConfirm.className = 'w-full sm:w-auto px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md shadow-indigo-200 cursor-pointer active:scale-95 transition-all';
+          }
+          if (help) help.innerText = `${myPlayer.tempIndex + 1}번 칸을 선택했습니다. [선택한 칸에 확정 기입하기]를 누르면 저장됩니다.`;
+        } else {
+          if (btnConfirm) {
+            btnConfirm.disabled = true;
+            btnConfirm.className = 'w-full sm:w-auto px-6 py-3 rounded-xl bg-slate-200 text-slate-400 font-bold text-xs cursor-not-allowed';
+          }
+          if (help) help.innerText = '20개의 칸 중 원하는 빈칸을 클릭하여 숫자를 배치하세요.';
+        }
+      }
+    }
+
+    function updateTeacherDashboardUI() {
+      const totalCount = allStudentsList.length;
+      const submittedCount = allStudentsList.filter(s => s.isPlaced || (s.filledCount >= gameState.round && gameState.round > 0)).length;
+
+      const tcTotalCountEl = document.getElementById('tcTotalStudentsCount');
+      const tcSubCountEl = document.getElementById('tcSubmittedCount');
+      if (tcTotalCountEl) tcTotalCountEl.innerText = `${totalCount}명`;
+      if (tcSubCountEl) tcSubCountEl.innerText = `${submittedCount}명`;
+
+      const btnDraw = document.getElementById('btnDrawTile');
+      const btnText = document.getElementById('btnDrawTileText');
+      if (btnDraw && btnText) {
+        if (gameState.round >= 20) {
+          btnText.innerText = '게임 종료 (20/20)';
+          btnDraw.disabled = true;
+        } else {
+          btnText.innerText = `타일 ${gameState.round + 1}번째 뽑기`;
+          btnDraw.disabled = false;
+        }
+      }
+
+      const tbody = document.getElementById('tcStudentTableBody');
+      if (tbody) {
+        if (allStudentsList.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="5" class="py-8 text-center text-slate-400">아직 접속한 학생이 없습니다.</td></tr>`;
+        } else {
+          tbody.innerHTML = allStudentsList.map((st, i) => {
+            const isDone = st.isPlaced || (st.filledCount >= gameState.round && gameState.round > 0);
+            return `
+              <tr class="hover:bg-slate-50 transition">
+                <td class="px-4 py-3 font-semibold text-slate-400">${i + 1}</td>
+                <td class="px-4 py-3 font-bold text-slate-800">${st.name}</td>
+                <td class="px-4 py-3 text-center">
+                  ${isDone 
+                    ? '<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-black bg-emerald-100 text-emerald-700"><i class="fa-solid fa-check"></i> 작성완료</span>' 
+                    : '<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-black bg-amber-100 text-amber-700 animate-pulse"><i class="fa-solid fa-hourglass-half"></i> 작성중</span>'}
+                </td>
+                <td class="px-4 py-3 text-center font-bold text-slate-600">${st.filledCount || 0} / 20</td>
+                <td class="px-4 py-3 text-right font-black text-indigo-600">${st.score ? st.score + '점' : '-'}</td>
+              </tr>
+            `;
+          }).join('');
+        }
+      }
+
+      const histContainer = document.getElementById('tcTileHistoryList');
+      const histCountEl = document.getElementById('tcHistoryCount');
+      if (histContainer && gameState.drawnHistory) {
+        if (histCountEl) histCountEl.innerText = gameState.drawnHistory.length;
+        if (gameState.drawnHistory.length === 0) {
+          histContainer.innerHTML = `<span class="text-xs text-slate-400 p-2">아직 추첨된 타일이 없습니다.</span>`;
+        } else {
+          histContainer.innerHTML = gameState.drawnHistory.map((t, idx) => `
+            <div class="w-9 h-11 bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col items-center justify-center">
+              <span class="text-[9px] text-slate-400 font-bold leading-none">${idx + 1}</span>
+              <span class="text-xs font-black ${t.isJoker ? 'text-amber-500' : 'text-slate-800'} leading-tight">${t.label || t.value}</span>
+            </div>
+          `).join('');
+        }
+      }
+    }
+
+    window.switchRoleView = function(role) {
+      const studentTab = document.getElementById('navTabStudent');
+      const teacherTab = document.getElementById('navTabTeacher');
+      const studentView = document.getElementById('viewStudent');
+      const teacherView = document.getElementById('viewTeacher');
+
+      if (role === 'teacher') {
+        document.getElementById('teacherAuthModal').classList.remove('hidden');
+        document.getElementById('inputTeacherPw').value = '';
+        document.getElementById('inputTeacherPw').focus();
+      } else {
+        studentTab.className = "px-3.5 py-1.5 rounded-lg transition-all text-indigo-700 bg-white shadow-sm";
+        teacherTab.className = "px-3.5 py-1.5 rounded-lg transition-all text-slate-500 hover:text-slate-700";
+        studentView.classList.remove('hidden');
+        teacherView.classList.add('hidden');
+      }
+    };
+
+    window.closeTeacherAuthModal = function() {
+      document.getElementById('teacherAuthModal').classList.add('hidden');
+    };
+
+    window.verifyTeacherPw = function() {
+      const pw = document.getElementById('inputTeacherPw').value;
+      if (pw === '1234') {
+        closeTeacherAuthModal();
+        const studentTab = document.getElementById('navTabStudent');
+        const teacherTab = document.getElementById('navTabTeacher');
+        const studentView = document.getElementById('viewStudent');
+        const teacherView = document.getElementById('viewTeacher');
+
+        teacherTab.className = "px-3.5 py-1.5 rounded-lg transition-all text-indigo-700 bg-white shadow-sm";
+        studentTab.className = "px-3.5 py-1.5 rounded-lg transition-all text-slate-500 hover:text-slate-700";
+        teacherView.classList.remove('hidden');
+        studentView.classList.add('hidden');
+        updateTeacherDashboardUI();
+        showToast('교사 관리자 모드로 전환되었습니다.', 'success');
+      } else {
+        showToast('비밀번호가 올바르지 않습니다. (기본: 1234)', 'danger');
+      }
+    };
+
+    window.handleStudentJoin = function(e) {
+      e.preventDefault();
+      const nameInput = document.getElementById('inputStudentName');
+      const name = nameInput.value.trim();
+      if (!name) return;
+
+      myPlayer.name = name;
+      document.getElementById('studentJoinModal').classList.add('hidden');
+      showToast(`${name} 학생으로 입장했습니다.`, 'success');
+
+      syncStudentDataToFirebase();
+      updateStudentViewUI();
+    };
+
+    function openAppModal(title, msg, onConfirm) {
+      const modal = document.getElementById('modalAppDialog');
+      const titleEl = document.getElementById('modalDialogTitle');
+      const msgEl = document.getElementById('modalDialogMsg');
+      const btnProceed = document.getElementById('btnModalProceed');
+      const btnCancel = document.getElementById('btnModalCancel');
+
+      titleEl.innerText = title;
+      msgEl.innerText = msg;
+      modal.classList.remove('hidden');
+
+      const cleanup = () => {
+        modal.classList.add('hidden');
+        btnProceed.onclick = null;
+        btnCancel.onclick = null;
+      };
+
+      btnCancel.onclick = () => cleanup();
+      btnProceed.onclick = () => {
+        cleanup();
+        onConfirm();
+      };
+    }
+
+    function showToast(message, type = 'info') {
+      const container = document.getElementById('toastStack');
+      if (!container) return;
+
+      const toast = document.createElement('div');
+      const colors = {
+        success: 'bg-emerald-600 text-white',
+        warning: 'bg-amber-500 text-white',
+        danger: 'bg-rose-600 text-white',
+        info: 'bg-slate-900 text-white'
+      };
+
+      toast.className = `${colors[type] || colors.info} px-4 py-3 rounded-2xl shadow-xl text-xs font-bold flex items-center gap-2 pointer-events-auto transform transition-all duration-300 translate-y-2 opacity-0`;
+      toast.innerHTML = `<i class="fa-solid fa-circle-info"></i> <span>${message}</span>`;
+      container.appendChild(toast);
+
+      requestAnimationFrame(() => {
+        toast.classList.remove('translate-y-2', 'opacity-0');
+      });
+
+      setTimeout(() => {
+        toast.classList.add('opacity-0', 'translate-y-2');
+        setTimeout(() => toast.remove(), 300);
+      }, 3000);
+    }
+
+    async function initFirebaseService() {
+      const badgeDot = document.getElementById('fbStatusDot');
+      const badgeText = document.getElementById('fbStatusText');
+
+      try {
+        app = initializeApp(firebaseConfig);
+        auth = getAuth(app);
+        db = getFirestore(app);
+
+        await signInAnonymously(auth);
+        isFirebaseActive = true;
+
+        if (badgeDot && badgeText) {
+          badgeDot.className = 'w-2 h-2 rounded-full bg-emerald-500';
+          badgeText.innerText = '파이어베이스 실시간 연동됨';
+        }
+
+        const appId = targetAppId;
+        const stateDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'streams_state', 'room_main');
+
+        // 게임 상태 실시간 구독
+        onSnapshot(stateDocRef, (snap) => {
+          if (snap.exists()) {
+            const data = snap.data();
+            const prevRound = gameState.round;
+            gameState.round = data.round || 0;
+            gameState.currentTile = data.currentTile || null;
+            gameState.deck = data.deck || [];
+            gameState.drawnHistory = data.drawnHistory || [];
+            gameState.isFinished = !!data.isFinished;
+
+            // 새 라운드가 시작되었으면 작성 완료 플래그 리셋
+            if (data.round > prevRound) {
+              myPlayer.isPlacedCurrentRound = false;
+              myPlayer.tempIndex = null;
+            } else if (data.round === 0) {
+              // 초기화된 경우
+              myPlayer.board = Array(20).fill(null);
+              myPlayer.tempIndex = null;
+              myPlayer.isPlacedCurrentRound = false;
+              myPlayer.score = 0;
+              const banner = document.getElementById('gameFinishBanner');
+              if (banner) banner.classList.add('hidden');
+            }
+
+            handleGameStateUpdate();
+          } else {
+            // 방이 없을 경우 새 방 생성
+            setDoc(stateDocRef, {
+              round: 0,
+              currentTile: null,
+              deck: generateNewDeck(),
+              drawnHistory: [],
+              isFinished: false,
+              updatedAt: Date.now()
+            });
+          }
+        }, (err) => {
+          console.warn("Firestore state sync notice:", err);
+        });
+
+        // 학생 참가자 목록 실시간 구독
+        const playersColRef = collection(db, 'artifacts', appId, 'public', 'data', 'streams_players');
+        onSnapshot(playersColRef, (snapshot) => {
+          allStudentsList = [];
+          snapshot.forEach((docSnap) => {
+            allStudentsList.push({ id: docSnap.id, ...docSnap.data() });
+          });
+          updateTeacherDashboardUI();
+        }, (err) => {
+          console.warn("Firestore players sync notice:", err);
+        });
+
+      } catch (err) {
+        console.warn("Firebase offline or local mode:", err);
+        if (badgeDot && badgeText) {
+          badgeDot.className = 'w-2 h-2 rounded-full bg-slate-400';
+          badgeText.innerText = '로컬 시뮬레이션 모드';
+        }
+        gameState.deck = generateNewDeck();
+      }
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      renderStreamsBoard();
+      initFirebaseService();
+
+      // 화면 크기 변경 시(스마트폰 회전 또는 창 크기 조절) 최적의 트랙 형태로 재배치
+      let resizeTimer;
+      window.addEventListener('resize', () => {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(() => {
+          renderStreamsBoard();
+        }, 150);
+      });
+    });
+  </script>
+</body>
+</html>
