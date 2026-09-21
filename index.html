@@ -191,13 +191,13 @@
         <h2 class="text-2xl font-black text-slate-900 mb-1 tracking-tight">스트림스 게임 참여</h2>
         <p class="text-xs text-slate-500 mb-6">수업에서 사용할 본인의 이름(또는 출석번호+이름)을 적어주세요.</p>
         
-        <form onsubmit="handleStudentJoin(event)" class="space-y-4">
+        <form id="studentJoinForm" onsubmit="return handleStudentJoin(event)" class="space-y-4">
           <div class="text-left">
             <label class="block text-xs font-bold text-slate-600 mb-1.5 ml-1">학생 이름</label>
             <input type="text" id="inputStudentName" required maxlength="12" placeholder="예: 3반 14번 김민준" 
               class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 transition outline-none" />
           </div>
-          <button type="submit" class="w-full py-3.5 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white font-bold rounded-xl text-sm shadow-md shadow-indigo-200 transition">
+          <button type="submit" id="btnStudentJoin" class="w-full py-3.5 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white font-bold rounded-xl text-sm shadow-md shadow-indigo-200 transition">
             게임방 입장하기 <i class="fa-solid fa-arrow-right ml-1"></i>
           </button>
         </form>
@@ -655,163 +655,14 @@
       deck.push({ id: 't_joker', value: 0, label: '★', isJoker: true });
 
       // Fisher-Yates 셔플
-    for (let i = deck.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [deck[i], deck[j]] = [deck[j], deck[i]];
-    }
-    return deck;
-  }
-
-  // 반응형 트랙 렌더링 (모바일 화면 폭에 맞춰 5열 x 4행 지그재그 또는 데스크톱 ㄷ자 경로 자동 선택)
-  window.renderStreamsBoard = function() {
-    const container = document.getElementById('streamsPathBoard');
-    if (!container) return;
-    container.innerHTML = '';
-
-    const isMobile = window.innerWidth < 768;
-
-    if (isMobile) {
-      // [스마트폰 화면]: 5열 x 4줄 S자 지그재그 트랙 (화면 폭에 딱 맞고 터치하기 큼직함)
-      const trackWrapper = document.createElement('div');
-      trackWrapper.className = 'flex flex-col gap-2 select-none w-full';
-
-      // 4줄의 지그재그 행 정의 (행 1: 1->5, 행 2: 6->10 좌방향, 행 3: 11->15, 행 4: 16->20 좌방향)
-      const rows = [
-        { cells: [0, 1, 2, 3, 4], dir: 'right' },
-        { cells: [9, 8, 7, 6, 5], dir: 'left' },
-        { cells: [10, 11, 12, 13, 14], dir: 'right' },
-        { cells: [19, 18, 17, 16, 15], dir: 'left' }
-      ];
-
-      rows.forEach((rowMeta, rIdx) => {
-        const rowEl = document.createElement('div');
-        rowEl.className = 'grid grid-cols-5 gap-1.5 w-full';
-
-        rowMeta.cells.forEach((cellIdx) => {
-          const isRight = (rowMeta.dir === 'right');
-          let dirClass = isRight ? 'cell-dir-right' : 'cell-dir-left';
-          if (cellIdx === 0) dirClass += ' cell-start';
-          if (cellIdx === 19) dirClass += ' cell-end';
-
-          rowEl.appendChild(createMobileTrackCellElement(cellIdx, dirClass));
-        });
-
-        trackWrapper.appendChild(rowEl);
-      });
-
-      container.appendChild(trackWrapper);
-
-    } else {
-      // [PC / 태블릿 화면]: 원작 고유 ㄷ자 트랙 레이아웃 유지
-      const trackWrapper = document.createElement('div');
-      trackWrapper.className = 'flex flex-col gap-2.5 sm:gap-4 select-none';
-
-      // 1. 상단 행 (1 ~ 7번 칸)
-      const topRow = document.createElement('div');
-      topRow.className = 'grid grid-cols-7 gap-1.5 sm:gap-2 w-full';
-      for (let i = 0; i <= 6; i++) {
-        topRow.appendChild(createTrackCellElement(i));
+      for (let i = deck.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [deck[i], deck[j]] = [deck[j], deck[i]];
       }
-      trackWrapper.appendChild(topRow);
-
-      // 2. 중간 영역 (중앙 로고 + 우측 8 ~ 11번 세로 칸)
-      const midSection = document.createElement('div');
-      midSection.className = 'grid grid-cols-7 gap-1.5 sm:gap-2 w-full';
-
-      const midSpacer = document.createElement('div');
-      midSpacer.className = 'col-span-6 flex items-center justify-center p-4 sm:p-6 bg-slate-200/50 rounded-2xl border-2 border-dashed border-slate-300';
-      midSpacer.innerHTML = `
-        <div class="text-center text-slate-500">
-          <div class="font-black text-sm sm:text-base tracking-widest text-slate-700 flex items-center justify-center gap-2 mb-1">
-            <i class="fa-solid fa-water text-indigo-500"></i> 원작 스트림스 화살표 경로
-          </div>
-          <p class="text-[11px] sm:text-xs text-slate-400 font-medium">
-            1번에서 출발하여 20번까지 오름차순으로 길게 이을수록 높은 점수를 얻습니다.
-          </p>
-        </div>
-      `;
-      midSection.appendChild(midSpacer);
-
-      const rightCol = document.createElement('div');
-      rightCol.className = 'col-span-1 flex flex-col gap-1.5 sm:gap-2 justify-between';
-      for (let i = 7; i <= 10; i++) {
-        rightCol.appendChild(createTrackCellElement(i, true));
-      }
-      midSection.appendChild(rightCol);
-      trackWrapper.appendChild(midSection);
-
-      // 3. 하단 행 (20 ~ 12번 칸)
-      const botRow = document.createElement('div');
-      botRow.className = 'grid grid-cols-9 gap-1.5 sm:gap-2 w-full';
-      for (let num = 20; num >= 12; num--) {
-        const cellIdx = num - 1;
-        botRow.appendChild(createTrackCellElement(cellIdx));
-      }
-      trackWrapper.appendChild(botRow);
-
-      container.appendChild(trackWrapper);
-    }
-  };
-
-  function createMobileTrackCellElement(index, dirClass) {
-    const cellData = myPlayer.board[index];
-    const isTempSelected = (myPlayer.tempIndex === index);
-
-    const cell = document.createElement('div');
-    // 모바일 터치를 위해 세로 높이 h-14 (56px) 확보
-    cell.className = `stream-cell ${dirClass} h-14 font-black text-slate-800 transition-all`;
-
-    if (cellData) {
-      if (cellData.colorClass) {
-        cell.className += ` ${cellData.colorClass.bg} ${cellData.colorClass.text}`;
-      } else {
-        cell.className += ' bg-white text-slate-900';
-      }
-
-      const valSpan = document.createElement('span');
-      valSpan.className = 'text-xl font-black z-10';
-      valSpan.innerText = cellData.label || cellData.value;
-      cell.appendChild(valSpan);
-
-      if (cellData.isJoker) {
-        const jokerMark = document.createElement('span');
-        jokerMark.className = 'text-[8px] text-amber-500 font-bold z-10 -mt-1';
-        jokerMark.innerText = '★조커';
-        cell.appendChild(jokerMark);
-      }
-
-    } else if (isTempSelected) {
-      cell.className += ' bg-indigo-500 text-white scale-[1.05] ring-4 ring-indigo-200 z-20 shadow-md';
-      const tempVal = document.createElement('span');
-      tempVal.className = 'text-xl font-black animate-pulse z-10';
-      tempVal.innerText = gameState.currentTile ? (gameState.currentTile.label || gameState.currentTile.value) : '?';
-      cell.appendChild(tempVal);
-
-    } else {
-      cell.className += ' bg-white text-slate-300 active:bg-indigo-50';
-      const dot = document.createElement('span');
-      dot.className = 'text-xs font-semibold opacity-40';
-      dot.innerHTML = '<i class="fa-solid fa-plus text-[10px]"></i>';
-      cell.appendChild(dot);
-    }
-
-    const numBadge = document.createElement('span');
-    numBadge.className = 'absolute top-1 left-2 text-[10px] font-bold text-slate-400 select-none z-10';
-    numBadge.innerText = index + 1;
-    cell.appendChild(numBadge);
-
-    cell.onclick = () => handleCellClick(index);
-    return cell;
-  }
       return deck;
     }
 
     // 원작 시트의 칸별 트랙 방향 및 형태 메타데이터 (총 20칸)
-    // 1~6: 상단 우측 진행 (Right)
-    // 7: 우상단 꺾임 코너 (Corner Top-Right)
-    // 8~11: 우측 세로 하강 (Down)
-    // 12: 우하단 꺾임 코너 (Corner Bottom-Right)
-    // 13~20: 하단 좌측 진행 (Left)
     const TRACK_CELL_CONFIG = [
       { num: 1, dir: 'cell-dir-right cell-start', label: '1' },
       { num: 2, dir: 'cell-dir-right', label: '2' },
@@ -835,59 +686,145 @@
       { num: 20, dir: 'cell-dir-left cell-end', label: '20' }
     ];
 
+    // 반응형 트랙 렌더링 (모바일 화면 폭에 맞춰 5열 x 4행 지그재그 또는 데스크톱 ㄷ자 경로 자동 선택)
     window.renderStreamsBoard = function() {
       const container = document.getElementById('streamsPathBoard');
       if (!container) return;
       container.innerHTML = '';
 
-      const trackWrapper = document.createElement('div');
-      trackWrapper.className = 'flex flex-col gap-2.5 sm:gap-4 select-none';
+      const isMobile = window.innerWidth < 768;
 
-      // 1. 상단 행 (1 ~ 7번 칸)
-      const topRow = document.createElement('div');
-      topRow.className = 'grid grid-cols-7 gap-1.5 sm:gap-2 w-full';
-      for (let i = 0; i <= 6; i++) {
-        topRow.appendChild(createTrackCellElement(i));
-      }
-      trackWrapper.appendChild(topRow);
+      if (isMobile) {
+        // [스마트폰 화면]: 5열 x 4줄 S자 지그재그 트랙 (화면 폭에 딱 맞고 터치하기 큼직함)
+        const trackWrapper = document.createElement('div');
+        trackWrapper.className = 'flex flex-col gap-2 select-none w-full';
 
-      // 2. 중간 영역 (좌측 가이드 + 우측 8 ~ 11번 세로 칸)
-      const midSection = document.createElement('div');
-      midSection.className = 'grid grid-cols-7 gap-1.5 sm:gap-2 w-full';
+        const rows = [
+          { cells: [0, 1, 2, 3, 4], dir: 'right' },
+          { cells: [9, 8, 7, 6, 5], dir: 'left' },
+          { cells: [10, 11, 12, 13, 14], dir: 'right' },
+          { cells: [19, 18, 17, 16, 15], dir: 'left' }
+        ];
 
-      const midSpacer = document.createElement('div');
-      midSpacer.className = 'col-span-6 flex items-center justify-center p-3 sm:p-6 bg-slate-200/50 rounded-2xl border-2 border-dashed border-slate-300';
-      midSpacer.innerHTML = `
-        <div class="text-center text-slate-500">
-          <div class="font-black text-xs sm:text-base tracking-widest text-slate-600 flex items-center justify-center gap-2 mb-1">
-            <i class="fa-solid fa-water text-indigo-500"></i> 스트림스 오름차순 트랙
+        rows.forEach((rowMeta) => {
+          const rowEl = document.createElement('div');
+          rowEl.className = 'grid grid-cols-5 gap-1.5 w-full';
+
+          rowMeta.cells.forEach((cellIdx) => {
+            const isRight = (rowMeta.dir === 'right');
+            let dirClass = isRight ? 'cell-dir-right' : 'cell-dir-left';
+            if (cellIdx === 0) dirClass += ' cell-start';
+            if (cellIdx === 19) dirClass += ' cell-end';
+
+            rowEl.appendChild(createMobileTrackCellElement(cellIdx, dirClass));
+          });
+
+          trackWrapper.appendChild(rowEl);
+        });
+
+        container.appendChild(trackWrapper);
+
+      } else {
+        // [PC / 태블릿 화면]: 원작 고유 ㄷ자 트랙 레이아웃 유지
+        const trackWrapper = document.createElement('div');
+        trackWrapper.className = 'flex flex-col gap-2.5 sm:gap-4 select-none';
+
+        // 1. 상단 행 (1 ~ 7번 칸)
+        const topRow = document.createElement('div');
+        topRow.className = 'grid grid-cols-7 gap-1.5 sm:gap-2 w-full';
+        for (let i = 0; i <= 6; i++) {
+          topRow.appendChild(createTrackCellElement(i));
+        }
+        trackWrapper.appendChild(topRow);
+
+        // 2. 중간 영역 (중앙 가이드 + 우측 8 ~ 11번 세로 칸)
+        const midSection = document.createElement('div');
+        midSection.className = 'grid grid-cols-7 gap-1.5 sm:gap-2 w-full';
+
+        const midSpacer = document.createElement('div');
+        midSpacer.className = 'col-span-6 flex items-center justify-center p-3 sm:p-6 bg-slate-200/50 rounded-2xl border-2 border-dashed border-slate-300';
+        midSpacer.innerHTML = `
+          <div class="text-center text-slate-500">
+            <div class="font-black text-xs sm:text-base tracking-widest text-slate-600 flex items-center justify-center gap-2 mb-1">
+              <i class="fa-solid fa-water text-indigo-500"></i> 원작 스트림스 화살표 경로
+            </div>
+            <p class="text-[11px] sm:text-xs text-slate-400 font-medium hidden sm:block">
+              1번에서 출발하여 화살표를 따라 20번까지 오름차순으로 길게 이을수록 높은 점수를 얻습니다.
+            </p>
           </div>
-          <p class="text-[11px] sm:text-xs text-slate-400 font-medium hidden sm:block">
-            상단 [1번]부터 화살표를 따라 우측으로 돌아서 하단 [20번]으로 이어집니다.
-          </p>
-        </div>
-      `;
-      midSection.appendChild(midSpacer);
+        `;
+        midSection.appendChild(midSpacer);
 
-      const rightCol = document.createElement('div');
-      rightCol.className = 'col-span-1 flex flex-col gap-1.5 sm:gap-2 justify-between';
-      for (let i = 7; i <= 10; i++) {
-        rightCol.appendChild(createTrackCellElement(i, true));
+        const rightCol = document.createElement('div');
+        rightCol.className = 'col-span-1 flex flex-col gap-1.5 sm:gap-2 justify-between';
+        for (let i = 7; i <= 10; i++) {
+          rightCol.appendChild(createTrackCellElement(i, true));
+        }
+        midSection.appendChild(rightCol);
+        trackWrapper.appendChild(midSection);
+
+        // 3. 하단 행 (20 ~ 12번 칸)
+        const botRow = document.createElement('div');
+        botRow.className = 'grid grid-cols-9 gap-1.5 sm:gap-2 w-full';
+        for (let num = 20; num >= 12; num--) {
+          const cellIdx = num - 1;
+          botRow.appendChild(createTrackCellElement(cellIdx));
+        }
+        trackWrapper.appendChild(botRow);
+
+        container.appendChild(trackWrapper);
       }
-      midSection.appendChild(rightCol);
-      trackWrapper.appendChild(midSection);
-
-      // 3. 하단 행 (20 ~ 12번 칸: 좌측 20번부터 우측 12번 코너까지)
-      const botRow = document.createElement('div');
-      botRow.className = 'grid grid-cols-9 gap-1.5 sm:gap-2 w-full';
-      for (let num = 20; num >= 12; num--) {
-        const cellIdx = num - 1;
-        botRow.appendChild(createTrackCellElement(cellIdx));
-      }
-      trackWrapper.appendChild(botRow);
-
-      container.appendChild(trackWrapper);
     };
+
+    function createMobileTrackCellElement(index, dirClass) {
+      const cellData = myPlayer.board[index];
+      const isTempSelected = (myPlayer.tempIndex === index);
+
+      const cell = document.createElement('div');
+      cell.className = `stream-cell ${dirClass} h-14 font-black text-slate-800 transition-all`;
+
+      if (cellData) {
+        if (cellData.colorClass) {
+          cell.className += ` ${cellData.colorClass.bg} ${cellData.colorClass.text}`;
+        } else {
+          cell.className += ' bg-white text-slate-900';
+        }
+
+        const valSpan = document.createElement('span');
+        valSpan.className = 'text-xl font-black z-10';
+        valSpan.innerText = cellData.label || cellData.value;
+        cell.appendChild(valSpan);
+
+        if (cellData.isJoker) {
+          const jokerMark = document.createElement('span');
+          jokerMark.className = 'text-[8px] text-amber-500 font-bold z-10 -mt-1';
+          jokerMark.innerText = '★조커';
+          cell.appendChild(jokerMark);
+        }
+
+      } else if (isTempSelected) {
+        cell.className += ' bg-indigo-500 text-white scale-[1.05] ring-4 ring-indigo-200 z-20 shadow-md';
+        const tempVal = document.createElement('span');
+        tempVal.className = 'text-xl font-black animate-pulse z-10';
+        tempVal.innerText = gameState.currentTile ? (gameState.currentTile.label || gameState.currentTile.value) : '?';
+        cell.appendChild(tempVal);
+
+      } else {
+        cell.className += ' bg-white text-slate-300 active:bg-indigo-50';
+        const dot = document.createElement('span');
+        dot.className = 'text-xs font-semibold opacity-40';
+        dot.innerHTML = '<i class="fa-solid fa-plus text-[10px]"></i>';
+        cell.appendChild(dot);
+      }
+
+      const numBadge = document.createElement('span');
+      numBadge.className = 'absolute top-1 left-2 text-[10px] font-bold text-slate-400 select-none z-10';
+      numBadge.innerText = index + 1;
+      cell.appendChild(numBadge);
+
+      cell.onclick = () => handleCellClick(index);
+      return cell;
+    }
 
     function createTrackCellElement(index, isVertical = false) {
       const cellData = myPlayer.board[index];
@@ -1378,17 +1315,30 @@
     };
 
     window.handleStudentJoin = function(e) {
-      e.preventDefault();
+      if (e) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
       const nameInput = document.getElementById('inputStudentName');
-      const name = nameInput.value.trim();
-      if (!name) return;
+      const name = nameInput ? nameInput.value.trim() : '';
+      if (!name) {
+        showToast('이름을 입력해주세요.', 'warning');
+        return false;
+      }
 
       myPlayer.name = name;
-      document.getElementById('studentJoinModal').classList.add('hidden');
+      const modal = document.getElementById('studentJoinModal');
+      if (modal) {
+        modal.classList.add('hidden');
+      }
+
       showToast(`${name} 학생으로 입장했습니다.`, 'success');
 
-      syncStudentDataToFirebase();
+      syncStudentDataToFirebase().catch(err => {
+        console.warn("Initial join sync notice:", err);
+      });
       updateStudentViewUI();
+      return false;
     };
 
     function openAppModal(title, msg, onConfirm) {
@@ -1527,6 +1477,14 @@
     window.addEventListener('DOMContentLoaded', () => {
       renderStreamsBoard();
       initFirebaseService();
+
+      // 학생 입장 폼 이벤트 추가 리스너 바인딩
+      const joinForm = document.getElementById('studentJoinForm');
+      if (joinForm) {
+        joinForm.addEventListener('submit', (evt) => {
+          window.handleStudentJoin(evt);
+        });
+      }
 
       // 화면 크기 변경 시(스마트폰 회전 또는 창 크기 조절) 최적의 트랙 형태로 재배치
       let resizeTimer;
