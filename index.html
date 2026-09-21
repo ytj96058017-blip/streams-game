@@ -45,7 +45,7 @@
       background: radial-gradient(circle at 50% 10%, #F8FAFC 0%, #EEF2F6 100%);
       user-select: none;
       -webkit-user-select: none;
-      touch-action: manipulation; /* 모바일에서 더블탭 딜레이 방지 */
+      touch-action: manipulation;
     }
     
     .tile-pulse {
@@ -111,23 +111,12 @@
       border-bottom-left-radius: 12px;
     }
 
-    /* 모바일 지그재그 코너 스타일 */
-    .cell-corner-r-down {
-      clip-path: polygon(0% 0%, 100% 0%, 100% 70%, 50% 100%, 0% 70%, 0% 0%);
-      border-top-right-radius: 12px;
-    }
-    .cell-corner-l-down {
-      clip-path: polygon(0% 0%, 100% 0%, 100% 70%, 50% 100%, 0% 70%, 0% 0%);
-      border-top-left-radius: 12px;
-    }
-
     /* 반응형 트랙 래퍼 */
     .track-board-container {
-      background: #CBD5E1; /* 원작 시트 그레이 톤 */
+      background: #CBD5E1;
       box-shadow: inset 0 2px 6px rgba(0,0,0,0.12), 0 8px 24px rgba(148,163,184,0.3);
     }
 
-    /* 커스텀 스크롤바 */
     ::-webkit-scrollbar {
       width: 6px;
       height: 6px;
@@ -181,62 +170,94 @@
 
   <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 flex flex-col">
 
-    <!-- 1. 학생 로그인 및 닉네임 입력 모달 (처음 접속 시) -->
-    <div id="studentJoinModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <!-- 1. 첫 접속 통합 선택 모달 (학생 참여 OR 교사 진행자 직행) -->
+    <div id="studentJoinModal" class="fixed inset-0 bg-slate-900/70 backdrop-blur-md z-50 flex items-center justify-center p-4">
       <div class="bg-white rounded-3xl max-w-md w-full p-6 sm:p-8 shadow-2xl border border-slate-100 text-center relative overflow-hidden">
-        <div class="absolute -right-8 -top-8 w-28 h-28 bg-indigo-50 rounded-full blur-xl pointer-events-none"></div>
-        <div class="w-16 h-16 bg-gradient-to-tr from-indigo-500 to-blue-600 text-white text-2xl rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-indigo-100">
-          <i class="fa-solid fa-dice"></i>
-        </div>
-        <h2 class="text-2xl font-black text-slate-900 mb-1 tracking-tight">스트림스 게임 참여</h2>
-        <p class="text-xs text-slate-500 mb-6">수업에서 사용할 본인의 이름(또는 출석번호+이름)을 적어주세요.</p>
+        <div class="absolute -right-8 -top-8 w-32 h-32 bg-indigo-50 rounded-full blur-2xl pointer-events-none"></div>
         
+        <div class="w-14 h-14 bg-gradient-to-tr from-indigo-600 to-blue-500 text-white text-2xl rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-lg shadow-indigo-200">
+          <i class="fa-solid fa-water"></i>
+        </div>
+        <h2 class="text-2xl font-black text-slate-900 mb-1 tracking-tight">스트림스 온라인 클래스</h2>
+        <p class="text-xs text-slate-500 mb-5">입장할 역할을 선택해주세요.</p>
+        
+        <!-- 역할 선택 탭 -->
+        <div class="flex bg-slate-100 p-1 rounded-2xl mb-5">
+          <button type="button" id="btnTabSelectStudent" onclick="toggleEntryRole('student')" class="flex-1 py-2 rounded-xl text-xs font-black bg-white text-indigo-700 shadow-sm transition-all">
+            <i class="fa-solid fa-graduation-cap mr-1"></i> 학생으로 참여
+          </button>
+          <button type="button" id="btnTabSelectTeacher" onclick="toggleEntryRole('teacher')" class="flex-1 py-2 rounded-xl text-xs font-bold text-slate-500 hover:text-slate-800 transition-all">
+            <i class="fa-solid fa-chalkboard-user mr-1"></i> 교사 진행자 입장
+          </button>
+        </div>
+
+        <!-- [폼 1] 학생 입장 폼 -->
         <form id="studentJoinForm" onsubmit="return handleStudentJoin(event)" class="space-y-4">
           <div class="text-left">
-            <label class="block text-xs font-bold text-slate-600 mb-1.5 ml-1">학생 이름</label>
-            <input type="text" id="inputStudentName" required maxlength="12" placeholder="예: 3반 14번 김민준" 
-              class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 transition outline-none" />
+            <label class="block text-xs font-bold text-slate-600 mb-1.5 ml-1">학생 이름 (또는 번호+이름)</label>
+            <input type="text" id="inputStudentName" required maxlength="12" placeholder="예: 14번 김민준" 
+              class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 transition outline-none" />
           </div>
-          <button type="submit" id="btnStudentJoin" class="w-full py-3.5 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white font-bold rounded-xl text-sm shadow-md shadow-indigo-200 transition">
-            게임방 입장하기 <i class="fa-solid fa-arrow-right ml-1"></i>
+          <button type="submit" id="btnStudentJoin" class="w-full py-3.5 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white font-bold rounded-xl text-sm shadow-md shadow-indigo-200 transition active:scale-[0.98]">
+            학생 게임방 입장 <i class="fa-solid fa-arrow-right ml-1"></i>
           </button>
         </form>
-      </div>
-    </div>
 
-    <!-- 2. 교사 인증 모달 (교사 탭 전환 시 비번 1234 확인) -->
-    <div id="teacherAuthModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
-      <div class="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-slate-100 text-center">
-        <div class="w-12 h-12 bg-amber-100 text-amber-600 rounded-2xl flex items-center justify-center text-xl mx-auto mb-3">
-          <i class="fa-solid fa-lock"></i>
-        </div>
-        <h3 class="text-lg font-black text-slate-900 mb-1">교사 관리자 인증</h3>
-        <p class="text-xs text-slate-500 mb-5">관리자 비밀번호(<span class="font-bold text-indigo-600">1234</span>)를 입력해주세요.</p>
-        <div class="space-y-3">
-          <input type="password" id="inputTeacherPw" placeholder="비밀번호 입력"
-            class="w-full px-4 py-2.5 text-center tracking-widest text-lg font-black bg-slate-50 border border-slate-200 rounded-xl focus:border-indigo-500 outline-none" />
-          <div class="flex gap-2">
-            <button onclick="closeTeacherAuthModal()" class="flex-1 py-2.5 bg-slate-100 text-slate-600 font-bold rounded-xl text-xs hover:bg-slate-200">
-              취소
-            </button>
-            <button onclick="verifyTeacherPw()" class="flex-1 py-2.5 bg-indigo-600 text-white font-bold rounded-xl text-xs hover:bg-indigo-700 shadow">
-              확인
-            </button>
+        <!-- [폼 2] 교사 관리자 바로 입장 폼 -->
+        <div id="teacherEntryPanel" class="hidden space-y-4">
+          <div class="p-3.5 bg-amber-50 rounded-2xl border border-amber-200/60 text-left text-xs text-amber-800 flex items-start gap-2.5">
+            <i class="fa-solid fa-shield-halved text-amber-600 text-sm mt-0.5"></i>
+            <div>
+              <span class="font-bold block mb-0.5">선생님(진행자) 전용 모드</span>
+              <span>학생 명단에 등록되지 않고 타일 추첨 및 라운드를 제어합니다. (기본 비밀번호: <strong class="text-amber-900">1234</strong>)</span>
+            </div>
           </div>
+          <div class="text-left">
+            <label class="block text-xs font-bold text-slate-600 mb-1.5 ml-1">관리자 비밀번호</label>
+            <input type="password" id="inputEntryTeacherPw" placeholder="1234" value="1234"
+              class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-center tracking-widest focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 transition outline-none" />
+          </div>
+          <button type="button" onclick="handleDirectTeacherEntry()" class="w-full py-3.5 bg-gradient-to-r from-slate-900 to-indigo-950 hover:from-slate-800 hover:to-indigo-900 text-white font-bold rounded-xl text-sm shadow-md transition active:scale-[0.98]">
+            교사 대시보드 바로 시작 <i class="fa-solid fa-crown ml-1 text-amber-400"></i>
+          </button>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- 2. 교사 인증 모달 (상단 네비바에서 교사 탭 전환 시) -->
+    <div id="teacherAuthModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+      <div class="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-slate-100 text-center space-y-4">
+        <div class="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-xl mx-auto shadow-sm">
+          <i class="fa-solid fa-key"></i>
+        </div>
+        <div>
+          <h3 class="font-black text-slate-900 text-base mb-1">교사 관리자 인증</h3>
+          <p class="text-xs text-slate-500">진행자 전용 비밀번호를 입력해주세요. (기본: 1234)</p>
+        </div>
+        <input type="password" id="inputTeacherPw" placeholder="비밀번호" 
+          class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-center font-bold text-sm focus:bg-white focus:border-indigo-500 outline-none" />
+        <div class="flex gap-2">
+          <button type="button" onclick="closeTeacherAuthModal()" class="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition">
+            취소
+          </button>
+          <button type="button" onclick="verifyTeacherPw()" class="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs shadow-md transition">
+            확인
+          </button>
         </div>
       </div>
     </div>
 
-    <!-- [화면 A] 학생 뷰 (Student View) -->
-    <div id="viewStudent" class="flex flex-col lg:flex-row gap-6 w-full items-start">
+    <!-- [화면 A] 학생 게임판 (Student View) -->
+    <div id="viewStudent" class="flex flex-col lg:flex-row gap-6 w-full">
       
-      <!-- 좌측 메인: 스트림스 오리지널 스타일 시트 보드 (20칸 지그재그 트랙) -->
-      <div class="w-full lg:flex-1 bg-white rounded-3xl p-5 sm:p-7 border border-slate-200/80 shadow-sm relative overflow-hidden flex flex-col gap-6">
+      <!-- 좌측 메인: 트랙 보드판 & 조작 영역 -->
+      <div class="flex-1 bg-white rounded-3xl p-5 sm:p-7 border border-slate-200/80 shadow-sm flex flex-col gap-5">
         
-        <!-- 보드 헤더 및 상태 정보 -->
+        <!-- 학생 정보 및 라운드 헤더 -->
         <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-4">
           <div class="flex items-center gap-3">
-            <span class="w-9 h-9 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold text-sm">
+            <span class="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-lg font-bold">
               <i class="fa-solid fa-user"></i>
             </span>
             <div>
@@ -282,7 +303,7 @@
           </div>
         </div>
 
-        <!-- 20칸 스트림스 인터랙티브 보드판 (지그재그 트랙 4줄 x 5열) -->
+        <!-- 20칸 스트림스 인터랙티브 보드판 -->
         <div>
           <div class="flex items-center justify-between mb-3 px-1">
             <span class="text-xs font-bold text-slate-700 flex items-center gap-2">
@@ -296,7 +317,6 @@
 
           <!-- 원작 시트 완벽 재현: 'ㄷ'자 화살표 경로 트랙 컨테이너 -->
           <div class="track-board-container p-4 sm:p-6 rounded-3xl relative overflow-hidden">
-            <!-- 트랙 중앙 내부 워터마크 안내 -->
             <div class="absolute left-6 bottom-24 sm:bottom-28 pointer-events-none hidden md:flex items-center gap-3 opacity-40">
               <i class="fa-solid fa-route text-4xl text-slate-600"></i>
               <div>
@@ -305,9 +325,8 @@
               </div>
             </div>
 
-            <!-- 20칸 경로 트랙 렌더링 영역 -->
             <div id="streamsPathBoard" class="w-full">
-              <!-- JS에서 원작 ㄷ자 경로(상단 1~6 ➔ 우측 7~11 ➔ 하단 12~20)를 동적 렌더링 -->
+              <!-- JS에서 원작 경로 동적 렌더링 -->
             </div>
           </div>
         </div>
@@ -338,10 +357,9 @@
 
       </div>
 
-      <!-- 우측 사이드바: 원작 공식 점수표 & 규칙 팝업 카드 -->
       <div class="w-full lg:w-80 flex flex-col gap-4">
         
-        <!-- 점수표 카드 (원작 시트 그대로 반영) -->
+        <!-- 점수표 카드 -->
         <div class="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-sm">
           <div class="flex items-center justify-between border-b border-slate-100 pb-3 mb-3">
             <h3 class="font-black text-sm text-slate-800 flex items-center gap-2">
@@ -489,7 +507,7 @@
       <!-- 하단 2열: 학생 실시간 현황표 & 뽑힌 타일 히스토리 -->
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
-        <!-- 실시간 학생 참여 및 점수 명단 (2열 차지) -->
+        <!-- 실시간 학생 참여 및 점수 명단 -->
         <div class="lg:col-span-2 bg-white rounded-3xl p-6 border border-slate-200/80 shadow-sm">
           <div class="flex items-center justify-between mb-4">
             <h3 class="font-extrabold text-base text-slate-900 flex items-center gap-2">
@@ -521,7 +539,7 @@
           </div>
         </div>
 
-        <!-- 지금까지 뽑힌 타일 히스토리 로그 (1열) -->
+        <!-- 지금까지 뽑힌 타일 히스토리 로그 -->
         <div class="lg:col-span-1 bg-white rounded-3xl p-6 border border-slate-200/80 shadow-sm flex flex-col">
           <h3 class="font-extrabold text-sm text-slate-900 mb-3 flex items-center gap-2">
             <i class="fa-solid fa-clock-rotate-left text-indigo-600"></i> 지금까지 나온 타일 (<span id="tcHistoryCount">0</span>/20)
@@ -537,7 +555,7 @@
 
   </main>
 
-  <!-- 안전한 인앱 알림/확인 모달 (iframe 내 alert/confirm 대체) -->
+  <!-- 안전한 인앱 알림/확인 모달 -->
   <div id="modalAppDialog" class="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
     <div class="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-slate-100 text-center space-y-4 animate-in fade-in zoom-in-95">
       <div id="modalDialogIcon" class="w-12 h-12 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center text-xl mx-auto">
@@ -565,7 +583,8 @@
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
     import { 
       getAuth, 
-      signInAnonymously 
+      signInAnonymously,
+      signInWithCustomToken 
     } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
     import { 
       getFirestore, 
@@ -591,8 +610,9 @@
     let app = null;
     let auth = null;
     let db = null;
+    let currentUser = null;
     let isFirebaseActive = false;
-    const targetAppId = 'streams_classroom_app';
+    const targetAppId = typeof __app_id !== 'undefined' ? __app_id : 'streams_classroom_app';
 
     // 원작 스트림스 공식 점수표 (1칸 0점 ~ 20칸 300점)
     const SCORE_TABLE = {
@@ -625,7 +645,7 @@
       streams: []
     };
 
-    // 전체 게임 상태 (교사 및 동기화용)
+    // 전체 게임 상태
     let gameState = {
       round: 0,
       currentTile: null,
@@ -686,7 +706,6 @@
       { num: 20, dir: 'cell-dir-left cell-end', label: '20' }
     ];
 
-    // 반응형 트랙 렌더링 (모바일 화면 폭에 맞춰 5열 x 4행 지그재그 또는 데스크톱 ㄷ자 경로 자동 선택)
     window.renderStreamsBoard = function() {
       const container = document.getElementById('streamsPathBoard');
       if (!container) return;
@@ -695,7 +714,7 @@
       const isMobile = window.innerWidth < 768;
 
       if (isMobile) {
-        // [스마트폰 화면]: 5열 x 4줄 S자 지그재그 트랙 (화면 폭에 딱 맞고 터치하기 큼직함)
+        // [스마트폰 화면]: 5열 x 4줄 S자 지그재그 트랙
         const trackWrapper = document.createElement('div');
         trackWrapper.className = 'flex flex-col gap-2 select-none w-full';
 
@@ -725,7 +744,7 @@
         container.appendChild(trackWrapper);
 
       } else {
-        // [PC / 태블릿 화면]: 원작 고유 ㄷ자 트랙 레이아웃 유지
+        // [PC / 태블릿 화면]: 원작 고유 ㄷ자 트랙 레이아웃
         const trackWrapper = document.createElement('div');
         trackWrapper.className = 'flex flex-col gap-2.5 sm:gap-4 select-none';
 
@@ -1062,7 +1081,6 @@
           updatedAt: Date.now()
         });
 
-        // 학생들의 제출 상태 일괄 리셋
         allStudentsList.forEach(async (st) => {
           const pRef = doc(db, 'artifacts', appId, 'public', 'data', 'streams_players', st.id);
           await updateDoc(pRef, { isPlaced: false }).catch(() => {});
@@ -1123,7 +1141,6 @@
     }
 
     function handleGameStateUpdate() {
-      // 학생 화면 타일 표시 갱신
       const tileValueEl = document.getElementById('stTileValue');
       const tileSubEl = document.getElementById('stTileSub');
       const roundEl = document.getElementById('stCurrentRound');
@@ -1142,7 +1159,6 @@
         if (tileValueEl) tileValueEl.innerText = val;
         if (tileSubEl) tileSubEl.innerText = gameState.currentTile.isJoker ? '조커(★)' : `라운드 ${gameState.round}`;
 
-        // 교사용 대형 타일 표시기
         const tcBigVal = document.getElementById('tcBigTileValue');
         const tcBigLabel = document.getElementById('tcBigTileLabel');
         if (tcBigVal) tcBigVal.innerText = val;
@@ -1290,6 +1306,50 @@
       }
     };
 
+    window.toggleEntryRole = function(role) {
+      const tabStudent = document.getElementById('btnTabSelectStudent');
+      const tabTeacher = document.getElementById('btnTabSelectTeacher');
+      const studentForm = document.getElementById('studentJoinForm');
+      const teacherPanel = document.getElementById('teacherEntryPanel');
+
+      if (role === 'teacher') {
+        tabTeacher.className = "flex-1 py-2 rounded-xl text-xs font-black bg-white text-indigo-700 shadow-sm transition-all";
+        tabStudent.className = "flex-1 py-2 rounded-xl text-xs font-bold text-slate-500 hover:text-slate-800 transition-all";
+        studentForm.classList.add('hidden');
+        teacherPanel.classList.remove('hidden');
+      } else {
+        tabStudent.className = "flex-1 py-2 rounded-xl text-xs font-black bg-white text-indigo-700 shadow-sm transition-all";
+        tabTeacher.className = "flex-1 py-2 rounded-xl text-xs font-bold text-slate-500 hover:text-slate-800 transition-all";
+        studentForm.classList.remove('hidden');
+        teacherPanel.classList.add('hidden');
+      }
+    };
+
+    window.handleDirectTeacherEntry = function() {
+      const pwInput = document.getElementById('inputEntryTeacherPw');
+      const pw = pwInput ? pwInput.value.trim() : '';
+
+      if (pw === '1234') {
+        const modal = document.getElementById('studentJoinModal');
+        if (modal) modal.classList.add('hidden');
+
+        const studentTab = document.getElementById('navTabStudent');
+        const teacherTab = document.getElementById('navTabTeacher');
+        const studentView = document.getElementById('viewStudent');
+        const teacherView = document.getElementById('viewTeacher');
+
+        teacherTab.className = "px-3.5 py-1.5 rounded-lg transition-all text-indigo-700 bg-white shadow-sm";
+        studentTab.className = "px-3.5 py-1.5 rounded-lg transition-all text-slate-500 hover:text-slate-700";
+        teacherView.classList.remove('hidden');
+        studentView.classList.add('hidden');
+
+        updateTeacherDashboardUI();
+        showToast('교사(진행자) 모드로 접속했습니다.', 'success');
+      } else {
+        showToast('비밀번호가 맞지 않습니다. (기본: 1234)', 'danger');
+      }
+    };
+
     window.closeTeacherAuthModal = function() {
       document.getElementById('teacherAuthModal').classList.add('hidden');
     };
@@ -1400,11 +1460,18 @@
         auth = getAuth(app);
         db = getFirestore(app);
 
-        await signInAnonymously(auth);
+        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+          const cred = await signInWithCustomToken(auth, __initial_auth_token);
+          currentUser = cred.user;
+        } else {
+          const cred = await signInAnonymously(auth);
+          currentUser = cred.user;
+        }
+
         isFirebaseActive = true;
 
         if (badgeDot && badgeText) {
-          badgeDot.className = 'w-2 h-2 rounded-full bg-emerald-500';
+          badgeDot.className = 'w-2 h-2 rounded-full bg-emerald-500 animate-pulse';
           badgeText.innerText = '파이어베이스 실시간 연동됨';
         }
 
@@ -1422,12 +1489,10 @@
             gameState.drawnHistory = data.drawnHistory || [];
             gameState.isFinished = !!data.isFinished;
 
-            // 새 라운드가 시작되었으면 작성 완료 플래그 리셋
             if (data.round > prevRound) {
               myPlayer.isPlacedCurrentRound = false;
               myPlayer.tempIndex = null;
             } else if (data.round === 0) {
-              // 초기화된 경우
               myPlayer.board = Array(20).fill(null);
               myPlayer.tempIndex = null;
               myPlayer.isPlacedCurrentRound = false;
@@ -1438,7 +1503,6 @@
 
             handleGameStateUpdate();
           } else {
-            // 방이 없을 경우 새 방 생성
             setDoc(stateDocRef, {
               round: 0,
               currentTile: null,
@@ -1449,7 +1513,7 @@
             });
           }
         }, (err) => {
-          console.warn("Firestore state sync notice:", err);
+          console.warn("Firestore state sync error:", err);
         });
 
         // 학생 참가자 목록 실시간 구독
@@ -1461,14 +1525,26 @@
           });
           updateTeacherDashboardUI();
         }, (err) => {
-          console.warn("Firestore players sync notice:", err);
+          console.warn("Firestore players sync error:", err);
         });
 
       } catch (err) {
-        console.warn("Firebase offline or local mode:", err);
+        console.warn("Firebase auth/init error:", err);
+        isFirebaseActive = false;
+
+        let errorMsg = '로컬 시뮬레이션 모드';
+        if (err && err.code === 'auth/operation-not-allowed') {
+          errorMsg = '익명 인증 미활성화';
+          openAppModal(
+            '파이어베이스 익명 로그인 설정 필요',
+            'Firebase Console > Authentication > Sign-in method에서 [익명(Anonymous)] 로그인을 [사용 설정]으로 변경하셔야 다른 기기 및 학생들과 실시간 연동됩니다.',
+            () => {}
+          );
+        }
+
         if (badgeDot && badgeText) {
-          badgeDot.className = 'w-2 h-2 rounded-full bg-slate-400';
-          badgeText.innerText = '로컬 시뮬레이션 모드';
+          badgeDot.className = 'w-2 h-2 rounded-full bg-rose-500';
+          badgeText.innerText = errorMsg;
         }
         gameState.deck = generateNewDeck();
       }
@@ -1478,7 +1554,6 @@
       renderStreamsBoard();
       initFirebaseService();
 
-      // 학생 입장 폼 이벤트 추가 리스너 바인딩
       const joinForm = document.getElementById('studentJoinForm');
       if (joinForm) {
         joinForm.addEventListener('submit', (evt) => {
@@ -1486,7 +1561,6 @@
         });
       }
 
-      // 화면 크기 변경 시(스마트폰 회전 또는 창 크기 조절) 최적의 트랙 형태로 재배치
       let resizeTimer;
       window.addEventListener('resize', () => {
         clearTimeout(resizeTimer);
