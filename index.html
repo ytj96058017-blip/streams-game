@@ -516,12 +516,13 @@
                   <th class="px-4 py-3">학생 이름</th>
                   <th class="px-4 py-3 text-center">이번 라운드 상태</th>
                   <th class="px-4 py-3 text-center">작성한 칸 수</th>
-                  <th class="px-4 py-3 text-right rounded-r-xl">현재 점수</th>
+                  <th class="px-4 py-3 text-right">현재 점수</th>
+                  <th class="px-3 py-3 text-center rounded-r-xl">관리</th>
                 </tr>
               </thead>
               <tbody id="tcStudentTableBody" class="divide-y divide-slate-100">
                 <tr>
-                  <td colspan="5" class="py-8 text-center text-slate-400">
+                  <td colspan="6" class="py-8 text-center text-slate-400">
                     아직 접속한 학생이 없습니다. 다른 창에서 학생으로 접속해보세요.
                   </td>
                 </tr>
@@ -608,7 +609,9 @@
       setDoc, 
       updateDoc, 
       onSnapshot, 
-      collection 
+      collection,
+      deleteDoc,
+      getDocs
     } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
     const firebaseConfig = {
@@ -967,12 +970,22 @@
           isPlaced: myPlayer.isPlacedCurrentRound,
           filledCount: filledCount,
           score: myPlayer.score,
+          lastSeen: Date.now(),
           updatedAt: Date.now()
         }, { merge: true });
       } catch (err) {
         console.error("Failed to sync student data:", err);
       }
     }
+
+    // 학생 실시간 접속 유지 신호 (Heartbeat: 5초 주기)
+    setInterval(() => {
+      if (db && myPlayer.name && myPlayer.id) {
+        updateDoc(doc(db, 'streams_players', myPlayer.id), {
+          lastSeen: Date.now()
+        }).catch(() => {});
+      }
+    }, 5000);
 
     function calculateFinalScoreAndHighlight() {
       let bestResult = evaluateBoardStreams(myPlayer.board);
@@ -1116,14 +1129,17 @@
 
     window.requestResetGame = function() {
       openAppModal(
-        '게임 전체 초기화',
-        '현재 게임을 처음(0라운드)부터 다시 시작하시겠습니까? 모든 학생의 보드도 함께 리셋됩니다.',
+        '게임 전체 초기화 및 명단 정리',
+        '게임을 처음(0라운드)부터 다시 시작하시겠습니까?\n현재 실제로 창을 열고 접속해 있는 학생만 보드가 초기화되어 유지되고, 창을 닫은 오프라인 학생은 명단에서 자동 삭제됩니다.',
         () => resetGameCompletely()
       );
     };
 
     async function resetGameCompletely() {
       const freshDeck = generateNewDeck();
+      const now = Date.now();
+      const activeThreshold = 25000; // 최근 25초 이내 반응이 있는 학생만 유지
+
       gameState.round = 0;
       gameState.currentTile = null;
       gameState.deck = freshDeck;
@@ -1139,6 +1155,7 @@
       if (banner) banner.classList.add('hidden');
 
       if (db) {
+        // 1. 방 상태 리셋
         const stateDocRef = doc(db, 'streams_rooms', 'room_main');
         await setDoc(stateDocRef, {
           round: 0,
@@ -1146,13 +1163,57 @@
           deck: freshDeck,
           drawnHistory: [],
           isFinished: false,
-          updatedAt: Date.now()
+          resetAt: now,
+          updatedAt: now
         });
+
+        // 2. 학생 명단 정리: 미접속자는 삭제하고, 실접속자는 보드/점수 초기화
+        try {
+          const playersSnap = await getDocs(collection(db, 'streams_players'));
+          const tasks = [];
+
+          playersSnap.forEach((docSnap) => {
+            const data = docSnap.data();
+            const isOnline = data.lastSeen && (now - data.lastSeen < activeThreshold);
+
+            if (!isOnline) {
+              // 창을 닫은 이전 학생 -> Firestore에서 완전 삭제
+              tasks.push(deleteDoc(doc(db, 'streams_players', docSnap.id)));
+            } else {
+              // 현재 접속 중인 학생 -> 게임 상태 초기화
+              tasks.push(updateDoc(doc(db, 'streams_players', docSnap.id), {
+                board: JSON.stringify(Array(20).fill(null)),
+                isPlaced: false,
+                filledCount: 0,
+                score: 0,
+                updatedAt: now
+              }));
+            }
+          });
+
+          await Promise.all(tasks);
+        } catch (e) {
+          console.warn("Error cleaning inactive students:", e);
+        }
       }
 
       handleGameStateUpdate();
-      showToast('게임이 성공적으로 초기화되었습니다.', 'info');
+      showToast('게임이 초기화되었습니다. 미접속 학생이 명단에서 정리되었습니다.', 'info');
     }
+
+    // 교사가 특정 학생을 명단에서 수동 삭제(퇴장)할 수 있는 기능
+    window.kickStudent = function(studentId, studentName) {
+      openAppModal(
+        '학생 명단 삭제',
+        `[${studentName}] 학생을 참가자 명단에서 삭제하시겠습니까?`,
+        async () => {
+          if (db) {
+            await deleteDoc(doc(db, 'streams_players', studentId)).catch(() => {});
+            showToast(`${studentName} 학생을 명단에서 제외했습니다.`, 'info');
+          }
+        }
+      );
+    };
 
     function handleGameStateUpdate() {
       const tileValueEl = document.getElementById('stTileValue');
@@ -1264,7 +1325,7 @@
       const tbody = document.getElementById('tcStudentTableBody');
       if (tbody) {
         if (allStudentsList.length === 0) {
-          tbody.innerHTML = `<tr><td colspan="5" class="py-8 text-center text-slate-400">아직 접속한 학생이 없습니다.</td></tr>`;
+          tbody.innerHTML = `<tr><td colspan="6" class="py-8 text-center text-slate-400">아직 접속한 학생이 없습니다.</td></tr>`;
         } else {
           tbody.innerHTML = allStudentsList.map((st, i) => {
             const isDone = st.isPlaced || (st.filledCount >= gameState.round && gameState.round > 0);
@@ -1279,6 +1340,11 @@
                 </td>
                 <td class="px-4 py-3 text-center font-bold text-slate-600">${st.filledCount || 0} / 20</td>
                 <td class="px-4 py-3 text-right font-black text-indigo-600">${st.score ? st.score + '점' : '-'}</td>
+                <td class="px-3 py-3 text-center">
+                  <button onclick="kickStudent('${st.id}', '${st.name.replace(/'/g, "\\'")}')" class="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition" title="학생 삭제/내보내기">
+                    <i class="fa-solid fa-trash-can"></i>
+                  </button>
+                </td>
               </tr>
             `;
           }).join('');
@@ -1584,7 +1650,7 @@
           console.warn("Firestore state sync error:", err);
         });
 
-        // 학생 참가자 목록 실시간 구독 (기존 프로젝트 컬렉션 방식)
+        // 학생 참가자 목록 실시간 구독
         const playersColRef = collection(db, 'streams_players');
         onSnapshot(playersColRef, (snapshot) => {
           allStudentsList = [];
